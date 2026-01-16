@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plume Blanche | Luxury Beauty Lounge</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Cormorant+Garamond:wght@300;400;500;600&family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Animated Background Overlay -->
+    <div class="bg-overlay"></div>
+
+    <header>
+        <div class="logo-container" data-aos="fade-down">
+            <img src="https://customer-assets.emergentagent.com/job_hair-hub-12/artifacts/cprm0suq_0c1377bd-f4df-4c9c-922d-9f2e9eca59a7.jfif" alt="Plume Blanche Logo" class="logo-image">
+        </div>
+        <nav id="nav-links" class="hidden">
+            <button onclick="showView('booking-section')" class="btn-nav" data-testid="nav-new-booking">
+                <i class="fas fa-calendar-plus"></i>
+                <span>New Booking</span>
+            </button>
+            <button onclick="showView('client-profile-section')" class="btn-nav" data-testid="nav-my-profile">
+                <i class="fas fa-user-circle"></i>
+                <span>My Profile</span>
+            </button>
+            <button id="logoutBtn" class="btn-logout" data-testid="logout-button">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Logout</span>
+            </button>
+        </nav>
+    </header>
+
+    <main id="app-container">
+        
+        <!-- AUTH SECTION -->
+        <section id="auth-section" class="view">
+            <div class="card auth-card" data-aos="fade-up">
+                <div class="card-icon">
+                    <i class="fas fa-spa"></i>
+                </div>
+                <h2 id="auth-title" class="section-title">Welcome Back</h2>
+                <p class="subtitle">Sign in to manage your beauty journey</p>
+                
+                <div class="input-group">
+                    <i class="fas fa-envelope"></i>
+                    <input type="email" id="email" placeholder="Email Address" data-testid="email-input">
+                </div>
+                
+                <div class="input-group">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="password" placeholder="Password" data-testid="password-input">
+                </div>
+
+                <div id="signup-extra" class="hidden">
+                    <p class="form-label">PROFILE DETAILS</p>
+                    <div class="input-group">
+                        <i class="fas fa-user"></i>
+                        <input type="text" id="fullname" placeholder="Full Name" data-testid="fullname-input">
+                    </div>
+                    <div class="input-group">
+                        <i class="fas fa-phone"></i>
+                        <input type="tel" id="phone" placeholder="Phone Number" data-testid="phone-input">
+                    </div>
+                </div>
+                
+                <button id="auth-action-btn" class="btn-primary" data-testid="auth-submit-button">
+                    <span>Login</span>
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+                
+                <p id="toggle-text" class="toggle-link" data-testid="toggle-auth-mode">
+                    Don't have an account? <span>Sign Up</span>
+                </p>
+            </div>
+        </section>
+
+        <!-- CLIENT PROFILE SECTION -->
+        <section id="client-profile-section" class="view hidden">
+            <div class="card" data-aos="fade-up">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="fas fa-calendar-check"></i>
+                    </div>
+                    <h2 class="section-title">My Appointments</h2>
+                    <p class="subtitle">Track your beauty sessions</p>
+                </div>
+                
+                <div class="profile-stats">
+                    <div class="stat-card">
+                        <i class="fas fa-crown"></i>
+                        <span id="client-role-badge">Gold Member</span>
+                    </div>
+                </div>
+
+                <div class="booking-filter-tabs">
+                    <button class="tab active" onclick="filterClientBookings('upcoming')" data-testid="tab-upcoming">
+                        <i class="fas fa-clock"></i>
+                        Upcoming
+                    </button>
+                    <button class="tab" onclick="filterClientBookings('pending')" data-testid="tab-pending">
+                        <i class="fas fa-hourglass-half"></i>
+                        Pending
+                    </button>
+                    <button class="tab" onclick="filterClientBookings('past')" data-testid="tab-history">
+                        <i class="fas fa-history"></i>
+                        History
+                    </button>
+                </div>
+
+                <div id="client-bookings-list" class="list-container">
+                    <div class="empty-state">
+                        <i class="fas fa-calendar-times"></i>
+                        <p>No appointments found</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SPECIALIST SCHEDULE SECTION -->
+        <section id="specialist-section" class="view hidden">
+            <div class="card" data-aos="fade-up">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="fas fa-calendar-week"></i>
+                    </div>
+                    <h2 class="section-title">My Schedule</h2>
+                    <p class="subtitle">View your upcoming appointments</p>
+                </div>
+
+                <div class="specialist-filters">
+                    <div class="filter-group">
+                        <i class="fas fa-calendar"></i>
+                        <input type="date" id="specialist-date-filter" class="filter-input" data-testid="specialist-date-filter">
+                    </div>
+                </div>
+
+                <div id="specialist-calendar-container" class="calendar-container">
+                    <!-- Calendar will be rendered here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- BOOKING SECTION -->
+        <section id="booking-section" class="view hidden">
+            <div class="card" data-aos="fade-up">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="fas fa-magic"></i>
+                    </div>
+                    <h3 class="section-title">Book Your Experience</h3>
+                    <p class="subtitle">Select your preferred date and services</p>
+                </div>
+
+                <div class="booking-step">
+                    <div class="step-number">1</div>
+                    <label class="step-label">Choose Your Date</label>
+                </div>
+                <div class="input-group calendar-group">
+                    <i class="fas fa-calendar-alt"></i>
+                    <input type="date" id="date-picker" class="custom-calendar" data-testid="date-picker">
+                </div>
+                
+                <div id="details-form" class="hidden">
+                    <div class="divider">
+                        <span>Continue Booking</span>
+                    </div>
+                    
+                    <div class="booking-step">
+                        <div class="step-number">2</div>
+                        <label class="step-label">Select Your Services</label>
+                    </div>
+                    <div id="service-checkbox-list" class="checkbox-group">
+                    </div>
+
+                    <div class="booking-step">
+                        <div class="step-number">3</div>
+                        <label class="step-label">Choose Your Specialist</label>
+                    </div>
+                    <div class="input-group">
+                        <i class="fas fa-user-tie"></i>
+                        <select id="tech-select" data-testid="technician-select">
+                            <option value="" disabled selected>Select your preferred specialist...</option>
+                        </select>
+                    </div>
+
+                    <div class="booking-step">
+                        <div class="step-number">4</div>
+                        <label class="step-label">Pick Your Time Slot</label>
+                    </div>
+                    <div id="time-slots" class="time-grid"></div>
+
+                    <div id="booking-summary" class="summary-box hidden">
+                        <div class="summary-header">
+                            <i class="fas fa-file-invoice"></i>
+                            <h4>Booking Summary</h4>
+                        </div>
+                        <div class="summary-row">
+                            <span>Total Duration:</span>
+                            <strong><span id="sum-duration">0</span> minutes</strong>
+                        </div>
+                        <div class="summary-row">
+                            <span>Total Price:</span>
+                            <strong class="price-highlight">$<span id="sum-price">0</span></strong>
+                        </div>
+                        <p id="split-notice" class="notice hidden">
+                            <i class="fas fa-info-circle"></i>
+                            This session involves multiple specialists
+                        </p>
+                    </div>
+
+                    <button id="book-now-btn" class="btn-primary btn-large hidden" data-testid="confirm-booking-button">
+                        <span>Confirm Booking</span>
+                        <i class="fas fa-check-circle"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ADMIN SECTION -->
+      <section id="admin-section" class="view hidden">
+    <div class="admin-header" data-aos="fade-down">
+        <h2 class="page-title">
+            <i class="fas fa-chart-line"></i>
+            Admin Dashboard
+        </h2>
+    </div>
+
+    <div class="admin-tabs">
+        <button class="tab-btn active" onclick="switchAdminTab('tab-scheduler')" data-testid="admin-tab-schedule">
+            <i class="fas fa-calendar-week"></i>
+            <span>Schedule</span>
+        </button>
+        <button class="tab-btn" onclick="switchAdminTab('tab-inbox')" data-testid="admin-tab-requests">
+            <i class="fas fa-inbox"></i>
+            <span>Requests</span>
+            <span id="pending-count-badge" class="badge hidden">0</span>
+        </button>
+        <button class="tab-btn" onclick="switchAdminTab('tab-management')" data-testid="admin-tab-settings">
+            <i class="fas fa-cog"></i>
+            <span>Settings</span>
+        </button>
+    </div>
+
+    <div id="tab-scheduler" class="admin-tab-content">
+        <div class="card admin-card">
+            <div class="card-subheader">
+                <h3>Daily Schedule</h3>
+                <p>Manage appointments and availability</p>
+            </div>
+
+            <div class="admin-filters">
+                <div class="filter-group">
+                    <i class="fas fa-calendar"></i>
+                    <input type="date" id="admin-date-filter" class="filter-input" data-testid="admin-date-filter">
+                </div>
+                <div class="filter-group">
+                    <i class="fas fa-user"></i>
+                    <select id="admin-tech-filter" class="filter-input" data-testid="admin-tech-filter"></select>
+                </div>
+                <div class="filter-group">
+                    <i class="fas fa-cut"></i>
+                    <select id="admin-service-filter" class="filter-input" data-testid="admin-service-filter"></select>
+                </div>
+            </div>
+
+            <div id="laser-control-panel" class="laser-panel">
+                <div class="laser-info">
+                    <i class="fas fa-bolt"></i>
+                    <span>Laser Services Control</span>
+                </div>
+                <button id="toggle-laser-btn" class="btn-laser" onclick="toggleLaserForDate()">
+                    <span id="laser-status-text">Enable for Selected Date</span>
+                </button>
+            </div>
+
+            <div class="view-controls">
+                <button id="btn-daily" class="btn-view-toggle active" onclick="switchView('daily')" data-testid="view-daily">
+                    <i class="fas fa-th"></i>
+                    Daily View
+                </button>
+                <button id="btn-weekly" class="btn-view-toggle" onclick="switchView('weekly')" data-testid="view-weekly">
+                    <i class="fas fa-calendar"></i>
+                    Weekly View
+                </button>
+            </div>
+
+            <div class="scheduler-container">
+                <div id="scheduler-grid" class="scheduler-grid"></div>
+            </div>
+
+            <div id="weekly-summary-container" class="hidden">
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-inbox" class="admin-tab-content hidden">
+        <div id="admin-inbox"></div>
+    </div>
+
+    <div id="tab-management" class="admin-tab-content hidden">
+        <div class="admin-management-panel">
+            <div class="mgmt-grid">
+                <div class="mgmt-card card">
+                    <div class="mgmt-header">
+                        <i class="fas fa-users"></i>
+                        <h3>Team Members</h3>
+                        <small style="color: var(--text-muted); margin-left: auto; font-size: 0.85rem;">
+                            Admin-only: Creates secure user accounts
+                        </small>
+                    </div>
+                    <div id="staff-list-container"></div>
+                    <div class="add-row" style="flex-wrap: wrap; gap: 10px;">
+                        <input type="text" id="new-staff-name" placeholder="Full Name" data-testid="new-staff-input" style="flex: 1; min-width: 150px;">
+                        <input type="email" id="new-staff-email" placeholder="Email Address" style="flex: 1; min-width: 180px;">
+                        <input type="tel" id="new-staff-phone" placeholder="Phone" style="flex: 1; min-width: 120px;">
+                        <select id="new-staff-role" style="width: 120px;">
+                            <option value="specialist">Specialist</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                        <button onclick="addStaff()" class="btn-add" data-testid="add-staff-button" style="padding: 10px 20px;">
+                            <i class="fas fa-plus"></i> Add Staff
+                        </button>
+                    </div>
+                    <div style="margin-top: 10px; padding: 10px; background: var(--light-bg); border-radius: 8px;">
+                        <small style="color: var(--text-muted); display: block; text-align: center;">
+                            <i class="fas fa-info-circle"></i> 
+                            System will generate a secure password and link user account automatically
+                        </small>
+                    </div>
+                </div>
+                <div class="mgmt-card card">
+                    <div class="mgmt-header">
+                        <i class="fas fa-list-ul"></i>
+                        <h3>Service Menu</h3>
+                    </div>
+                    <div id="service-list-container"></div>
+                    <div class="add-row" style="flex-wrap: wrap; gap: 10px;">
+                        <input type="text" id="new-service-name" placeholder="Service name" data-testid="new-service-name" style="flex: 1; min-width: 150px;">
+                        <input type="number" id="new-service-dur" placeholder="Duration (min)" data-testid="new-service-duration" style="width: 120px;">
+                        <input type="number" id="new-service-price" placeholder="Price ($)" data-testid="new-service-price" style="width: 120px;">
+                        <input type="text" id="new-service-category" placeholder="Category" style="width: 120px;">
+                        <label style="display:flex; align-items:center; gap:8px; white-space:nowrap;">
+                            <input type="checkbox" id="new-service-confirm" style="width:auto;">
+                            <span style="font-size:0.8rem;">Needs Approval</span>
+                        </label>
+                        <button onclick="addService()" class="btn-add" data-testid="add-service-button" style="padding: 10px 20px;">
+                            <i class="fas fa-plus"></i> Add Service
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+    </main>
+
+    <!-- SUCCESS MODAL -->
+    <div id="confirm-modal" class="modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content" data-aos="zoom-in">
+            <div class="success-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <h3>Success!</h3>
+            <p id="modal-msg">Appointment Booked!</p>
+            <button onclick="closeModal()" class="btn-primary" data-testid="modal-close-button">
+                <span>Perfect!</span>
+                <i class="fas fa-thumbs-up"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- STAFF SKILLS MODAL -->
+    <div id="skills-modal" class="modal">
+        <div class="modal-backdrop" onclick="closeSkillsModal()"></div>
+        <div class="modal-content" style="max-width: 600px;">
+            <h3 id="skills-modal-title">Manage Skills</h3>
+            <div id="skills-checkbox-list" class="checkbox-group" style="max-height: 400px; text-align: left; margin: 20px 0;">
+                <!-- Service checkboxes will be added here -->
+            </div>
+            <button onclick="saveStaffSkills()" class="btn-primary">
+                <span>Save Skills</span>
+                <i class="fas fa-save"></i>
+            </button>
+        </div>
+    </div>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+    import { 
+        getDatabase, ref, set, onValue, push, remove, get, update,
+        query, orderByChild, equalTo 
+    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+    import { 
+        getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
+        signOut, onAuthStateChanged 
+    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyAQFPrIm-nM64S1vx8ge-GVIVMm7vb6oS0",
+        authDomain: "plume-blanche.firebaseapp.com",
+        databaseURL: "https://plume-blanche-default-rtdb.firebaseio.com",
+        projectId: "plume-blanche",
+        storageBucket: "plume-blanche.firebasestorage.app",
+        messagingSenderId: "74569715679",
+        appId: "1:74569715679:web:584e870612e5491111fe6a"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const database = getDatabase(app);
+    const auth = getAuth(app);
+
+    // Export to window
+    window.db = database;
+    window.dbRef = ref;
+    window.dbSet = set;
+    window.dbOnValue = onValue;
+    window.dbPush = push;
+    window.dbRemove = remove;
+    window.dbGet = get;
+    window.dbUpdate = update;
+    window.dbQuery = query;
+    window.orderByChild = orderByChild;
+    window.equalTo = equalTo;
+    window.auth = auth;
+    window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
+    window.signInWithEmailAndPassword = signInWithEmailAndPassword;
+    window.signOut = signOut;
+    window.onAuthStateChanged = onAuthStateChanged;
+
+    console.log("Firebase initialized successfully!");
+</script>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
