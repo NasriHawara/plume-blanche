@@ -1,5 +1,5 @@
 // ==========================================
-// SALON MANAGEMENT SYSTEM - COMPLETE VERSION
+// SALON MANAGEMENT SYSTEM - FIXED VERSION
 // ==========================================
 
 const APP_SETTINGS = {
@@ -17,6 +17,7 @@ let isLoggingIn = true;
 let weeklyViewOffset = 0;
 let currentClientFilter = 'upcoming';
 let currentEditingStaff = null;
+let adminBookingContext = null;
 
 const datePicker = document.getElementById('date-picker');
 const detailsForm = document.getElementById('details-form');
@@ -27,10 +28,6 @@ const serviceCheckboxList = document.getElementById('service-checkbox-list');
 const techSelect = document.getElementById('tech-select');
 const bookingSummary = document.getElementById('booking-summary');
 const bookNowBtn = document.getElementById('book-now-btn');
-
-
-
-
 
 // ==========================================
 // FIREBASE DATA SYNC
@@ -51,7 +48,7 @@ function startFirebaseSync() {
         refreshCurrentView();
     });
 
-    // Sync technicians - now includes user linking
+    // Sync technicians
     const techRef = window.dbRef(window.db, 'technicians');
     window.dbOnValue(techRef, (snapshot) => {
         const data = snapshot.val();
@@ -60,10 +57,9 @@ function startFirebaseSync() {
                 ...data[key],
                 id: key
             }));
-            
-            // If user is a specialist, filter to show only their data
+
             if (currentUser && currentUser.role === 'specialist') {
-                technicians = technicians.filter(tech => 
+                technicians = technicians.filter(tech =>
                     tech.userId === currentUser.uid
                 );
             }
@@ -79,7 +75,6 @@ function startFirebaseSync() {
                     renderAdminScheduler();
                 }
             } else if (currentUser.role === 'specialist') {
-                // Specialist sees only themselves in dropdowns
                 updateClientDropdowns();
                 if (!document.getElementById('specialist-section').classList.contains('hidden')) {
                     renderSpecialistSchedule();
@@ -104,6 +99,7 @@ function startFirebaseSync() {
         if (currentUser && currentUser.role === 'admin') {
             updateAdminFilterDropdowns();
             renderServiceList();
+            updateCategoryDropdown(); // FIX: Update category dropdown when services change
         }
     });
 
@@ -122,26 +118,22 @@ function startFirebaseSync() {
     window.dbOnValue(notificationsRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
-            // Convert to array with keys
             const notifications = Object.keys(data).map(key => ({
                 ...data[key],
                 key: key
             }));
-            
-            // Check for new notifications if user is admin or specialist
+
             if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'specialist')) {
                 checkForNewNotifications(notifications);
             }
         }
     });
 
-    // NEW: Sync users for admin to see all accounts
     if (currentUser && currentUser.role === 'admin') {
         const usersRef = window.dbRef(window.db, 'users');
         window.dbOnValue(usersRef, (snapshot) => {
             const data = snapshot.val();
             if (data) {
-                // Store users data for admin reference
                 window.allUsers = Object.keys(data).map(key => ({
                     ...data[key],
                     uid: key
@@ -171,6 +163,39 @@ function refreshCurrentView() {
 }
 
 // ==========================================
+// PHONE NUMBER SYNC LOGIC (FIXED)
+// ==========================================
+async function syncPhoneLinkedAppointments(userId, phone) {
+    if (!phone) return;
+
+    const appointmentsRef = window.dbRef(window.db, 'appointments');
+    const snapshot = await window.dbGet(appointmentsRef);
+
+    if (!snapshot.exists()) return;
+
+    const appointments = snapshot.val();
+    let syncCount = 0;
+
+    for (const [key, appt] of Object.entries(appointments)) {
+        // FIX: Match by phone number and sync to user account
+        if (appt.phone === phone && (!appt.userId || appt.userId === 'ADMIN_MANUAL')) {
+            const apptRef = window.dbRef(window.db, `appointments/${key}`);
+            await window.dbUpdate(apptRef, {
+                userId: userId,
+                name: currentUser?.name || appt.name,
+                email: currentUser?.email || appt.email
+            });
+            syncCount++;
+        }
+    }
+
+    if (syncCount > 0) {
+        console.log(`Synced ${syncCount} appointments to user account`);
+        showNotification(`${syncCount} previous appointments linked to your account!`, 'success');
+    }
+}
+
+// ==========================================
 // NAVIGATION & AUTHENTICATION
 // ==========================================
 function showView(viewId) {
@@ -185,7 +210,6 @@ function showView(viewId) {
         target.style.animation = 'fadeInUp 0.5s ease';
     }
 
-    // Update navigation visibility
     const navButtons = document.querySelectorAll('.btn-nav');
     navButtons.forEach(btn => {
         const btnText = btn.textContent.toLowerCase();
@@ -241,32 +265,32 @@ authBtn.onclick = async () => {
 
     try {
         if (isLoggingIn) {
-            // LOGIN EXISTING USER
             const userCredential = await window.signInWithEmailAndPassword(window.auth, email, password);
             console.log("User logged in:", userCredential.user.uid);
             showNotification('Login successful!', 'success');
-            
+
         } else {
-            // SIGNUP NEW USER - ALWAYS AS CLIENT
             const userCredential = await window.createUserWithEmailAndPassword(window.auth, email, password);
             console.log("User created:", userCredential.user.uid);
-            
-            // Save user data to Firebase - ALWAYS AS CLIENT
+
             const userData = {
                 email: email,
                 name: name,
                 phone: phone,
-                role: 'client', // ALWAYS client on signup
+                role: 'client',
                 createdAt: new Date().toISOString()
             };
-            
+
             const userRef = window.dbRef(window.db, `users/${userCredential.user.uid}`);
             await window.dbSet(userRef, userData);
             console.log("Client account created");
-            
+
+            // FIX: Sync phone-linked appointments immediately after signup
+            await syncPhoneLinkedAppointments(userCredential.user.uid, phone);
+
             showNotification('Account created successfully!', 'success');
         }
-        
+
     } catch (error) {
         console.error("Auth error:", error);
         let message = 'Authentication failed. ';
@@ -290,7 +314,6 @@ document.getElementById('logoutBtn').onclick = async () => {
         try {
             await window.signOut(window.auth);
             showNotification('Logged out successfully', 'info');
-            // Auth state listener will handle the UI update
         } catch (error) {
             console.error("Logout error:", error);
             showNotification('Logout failed', 'danger');
@@ -307,44 +330,33 @@ function renderServiceCheckboxes() {
 
     container.innerHTML = '';
 
-    // Get selected date to check laser availability
     const selectedDate = datePicker?.value;
     const isLaserEnabled = selectedDate && laserDates.includes(selectedDate);
 
-    // Group services by category
     const categories = {};
     services.forEach(service => {
-        // Check if this is a laser service
         const isLaserService = service.category && service.category.toLowerCase() === 'laser';
-        
-        // Skip laser services if not enabled for this date (unless admin)
-        if (isLaserService) {
-            if (!isLaserEnabled && currentUser && currentUser.role !== 'admin') {
-                return; // Skip laser services for non-admins when not enabled
-            }
-            // Only show laser services if date is enabled OR user is admin
-            if (!isLaserEnabled && currentUser && currentUser.role !== 'admin') {
-                return;
-            }
+
+        // FIX: Hide laser services if not enabled for the date (unless admin)
+        if (isLaserService && !isLaserEnabled && currentUser && currentUser.role !== 'admin') {
+            return;
         }
 
         let catName = service.category || "General Services";
-        // Make sure "Laser" is always categorized as "Laser" (case-sensitive for filtering)
         if (isLaserService) {
             catName = "Laser";
         }
-        
+
         if (!categories[catName]) categories[catName] = [];
         categories[catName].push(service);
     });
 
-    // If no services available (especially for laser), show message
     if (Object.keys(categories).length === 0) {
         container.innerHTML = `
             <div style="text-align: center; padding: 30px; color: var(--text-muted);">
                 <i class="fas fa-info-circle" style="font-size: 2rem; margin-bottom: 10px;"></i>
                 <p>No services available for the selected date.</p>
-                ${selectedDate && !isLaserEnabled ? 
+                ${selectedDate && !isLaserEnabled ?
                     '<p style="font-size: 0.9rem;">Laser services are not available on this date.</p>' : ''}
             </div>
         `;
@@ -354,8 +366,7 @@ function renderServiceCheckboxes() {
     Object.keys(categories).forEach(catName => {
         const catBtn = document.createElement('button');
         catBtn.className = 'category-toggle-btn';
-        
-        // Add laser indicator if this is the Laser category
+
         if (catName === "Laser") {
             catBtn.innerHTML = `<span><i class="fas fa-bolt"></i> ${catName}</span>`;
             catBtn.style.borderLeft = '3px solid #ff9800';
@@ -376,9 +387,8 @@ function renderServiceCheckboxes() {
             const item = document.createElement('div');
             item.className = 'checkbox-item';
 
-            // Add laser icon for laser services
-            const serviceIcon = service.category && service.category.toLowerCase() === 'laser' 
-                ? '<i class="fas fa-bolt" style="color: #ff9800; margin-right: 8px;"></i>' 
+            const serviceIcon = service.category && service.category.toLowerCase() === 'laser'
+                ? '<i class="fas fa-bolt" style="color: #ff9800; margin-right: 8px;"></i>'
                 : '';
 
             item.innerHTML = `
@@ -417,8 +427,6 @@ function updateBookingTotal() {
         bookingSummary.classList.remove('hidden');
         document.getElementById('sum-duration').innerText = totalMins;
         document.getElementById('sum-price').innerText = totalPrice;
-
-        // Update technician dropdown based on selected services
         updateTechnicianOptions();
     } else {
         bookingSummary.classList.add('hidden');
@@ -430,46 +438,42 @@ function updateBookingTotal() {
 function updateTechnicianOptions() {
     if (!techSelect) return;
 
-    // 1. Get IDs of all currently checked services
     const checked = Array.from(serviceCheckboxList.querySelectorAll('input:checked'));
     const selectedServiceIds = checked.map(el => el.value);
 
-    // 2. Filter based on User Role (Specialists only see themselves)
     let availableTechs = technicians;
     if (currentUser && currentUser.role === 'specialist') {
-        availableTechs = technicians.filter(tech => 
+        availableTechs = technicians.filter(tech =>
             tech.userId === currentUser.uid
         );
     }
 
-    // 3. Filter by Skills (The Fix)
     const qualifiedTechs = availableTechs.filter(tech => {
-        // If no services are selected yet, show everyone
         if (selectedServiceIds.length === 0) return true;
-
-        // If a technician has no skills listed, they are not qualified for any selected service
         if (!tech.skills || !Array.isArray(tech.skills) || tech.skills.length === 0) {
             return false;
         }
-
-        // Only return true if the tech has EVERY selected service ID in their skills array
         return selectedServiceIds.every(sId => tech.skills.includes(sId));
     });
 
-    // 4. Update the Dropdown HTML
     renderTechDropdown(qualifiedTechs);
 }
 
-// Helper function to handle the actual drawing of the dropdown
 function renderTechDropdown(techList) {
     const currentSelection = techSelect.value;
-    
+
     techSelect.innerHTML = '<option value="" disabled selected>Select your preferred specialist...</option>';
-    
+
     techList.forEach(t => {
         const selected = (t.name === currentSelection) ? 'selected' : '';
         techSelect.innerHTML += `<option value="${t.name}" ${selected}>${t.name.charAt(0).toUpperCase() + t.name.slice(1)}</option>`;
     });
+}
+
+function updateClientDropdowns() {
+    if (techSelect) {
+        updateTechnicianOptions();
+    }
 }
 
 function generate15MinSlots() {
@@ -488,7 +492,6 @@ function generate15MinSlots() {
         return;
     }
 
-    // Check if date is Sunday and user is not admin
     const dateObj = new Date(selectedDate + 'T00:00:00');
     if (dateObj.getDay() === 0 && currentUser && currentUser.role !== 'admin') {
         timeGrid.innerHTML = '<p style="text-align:center; padding:20px; color:var(--warning);"><i class="fas fa-exclamation-circle"></i> We are closed on Sundays</p>';
@@ -541,9 +544,9 @@ function selectSlot(el) {
 }
 
 bookNowBtn.onclick = async () => {
-    // Check if user is authenticated as client
+
     if (!currentUser || currentUser.role !== 'client') {
-        showNotification('Please login as a client to book appointments', 'warning');
+        showNotification('Please login to book appointments', 'warning');
         showView('auth-section');
         return;
     }
@@ -558,11 +561,10 @@ bookNowBtn.onclick = async () => {
     const selectedServiceNames = checked.map(el => el.dataset.name);
     const selectedServiceIds = checked.map(el => el.value);
     const needsApproval = checked.some(el => el.dataset.confirm === 'true');
-    
+
     const totalDuration = parseInt(document.getElementById('sum-duration').innerText);
     const totalPrice = parseInt(document.getElementById('sum-price').innerText);
-    
-    // Get selected specialist
+
     const selectedSpecialistName = techSelect.value;
     const selectedSpecialist = technicians.find(t => t.name === selectedSpecialistName);
 
@@ -575,8 +577,8 @@ bookNowBtn.onclick = async () => {
         name: currentUser.name,
         phone: currentUser.phone,
         email: currentUser.email,
-        userId: currentUser.uid, // Client's user ID
-        specialistId: selectedSpecialist.userId || "", // Specialist's user ID
+        userId: currentUser.uid,
+        specialistId: selectedSpecialist.userId || "",
         services: selectedServiceNames,
         serviceIds: selectedServiceIds,
         tech: selectedSpecialistName,
@@ -584,7 +586,7 @@ bookNowBtn.onclick = async () => {
         duration: totalDuration,
         price: totalPrice,
         date: datePicker.value,
-        status: needsApproval ? 'pending' : 'confirmed', // Admin no longer auto-confirms
+        status: needsApproval ? 'pending' : 'confirmed',
         createdAt: new Date().toISOString()
     };
 
@@ -595,10 +597,7 @@ bookNowBtn.onclick = async () => {
         await window.dbSet(newApptRef, newBooking);
         console.log("Booking synced to Firebase!");
 
-        // Play notification sound for everyone
         playNotificationSound('booking');
-
-        // Send booking notification to admin and specialist
         sendBookingNotification(newBooking);
 
         document.getElementById('modal-msg').innerText = newBooking.status === 'pending'
@@ -606,7 +605,6 @@ bookNowBtn.onclick = async () => {
             : "Your appointment has been confirmed successfully!";
         confirmModal.classList.add('active');
 
-        // Reset form
         serviceCheckboxList.querySelectorAll('input:checked').forEach(cb => cb.checked = false);
         techSelect.value = '';
         timeGrid.innerHTML = '';
@@ -623,13 +621,12 @@ bookNowBtn.onclick = async () => {
 // ==========================================
 function filterClientBookings(filter) {
     currentClientFilter = filter;
-    
-    // Update tab active state
+
     document.querySelectorAll('.booking-filter-tabs .tab').forEach(tab => {
         tab.classList.remove('active');
     });
     event.target.closest('.tab').classList.add('active');
-    
+
     renderClientProfile();
 }
 
@@ -638,17 +635,16 @@ function renderClientProfile() {
     if (!list || !currentUser) return;
 
     list.innerHTML = '';
-    
-    const myBookings = mockAppointments.filter(appt => 
-        appt.email === currentUser.email || appt.phone === currentUser.phone
+
+    const myBookings = mockAppointments.filter(appt =>
+        appt.userId === currentUser.uid || appt.email === currentUser.email || appt.phone === currentUser.phone
     );
 
-    // Filter based on current filter
     const now = new Date();
     const today = now.toISOString().split('T')[0];
-    
+
     let filteredBookings = [];
-    
+
     if (currentClientFilter === 'upcoming') {
         filteredBookings = myBookings.filter(appt => {
             if (appt.status !== 'confirmed') return false;
@@ -684,7 +680,6 @@ function renderClientProfile() {
         return;
     }
 
-    // Sort by date and time
     filteredBookings.sort((a, b) => {
         if (a.date !== b.date) return a.date.localeCompare(b.date);
         return a.time.localeCompare(b.time);
@@ -716,14 +711,12 @@ function renderClientProfile() {
 // ==========================================
 function renderSpecialistSchedule() {
     const container = document.getElementById('specialist-calendar-container');
-    // Check if user is a specialist
     if (!container || !currentUser || currentUser.role !== 'specialist') return;
 
     const filterDate = document.getElementById('specialist-date-filter')?.value || new Date().toISOString().split('T')[0];
-    
-    // Get ONLY this specialist's appointments (using specialistId or tech name match)
-    const myAppointments = mockAppointments.filter(appt => 
-        (appt.specialistId === currentUser.uid || appt.tech === currentUser.name) && 
+
+    const myAppointments = mockAppointments.filter(appt =>
+        (appt.specialistId === currentUser.uid || appt.tech === currentUser.name) &&
         appt.date === filterDate &&
         appt.status === 'confirmed'
     ).sort((a, b) => a.time.localeCompare(b.time));
@@ -731,7 +724,7 @@ function renderSpecialistSchedule() {
     container.innerHTML = `
         <div class="specialist-day-header">
             <h3 style="font-family: 'Playfair Display'; font-size: 1.5rem; margin-bottom: 20px;">
-                <i class="fas fa-calendar-day"></i> 
+                <i class="fas fa-calendar-day"></i>
                 ${new Date(filterDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </h3>
             <div class="specialist-stats">
@@ -782,7 +775,6 @@ function renderSpecialistSchedule() {
     });
 }
 
-// Setup specialist date filter
 if (document.getElementById('specialist-date-filter')) {
     document.getElementById('specialist-date-filter').value = new Date().toISOString().split('T')[0];
     document.getElementById('specialist-date-filter').addEventListener('change', renderSpecialistSchedule);
@@ -798,6 +790,39 @@ function refreshAdminData() {
     renderStaffList();
     renderServiceList();
     updateLaserButton();
+    renderClientHistory();
+    renderReminders();
+}
+
+function switchAdminTab(tabName) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    event.target.closest('.tab-btn').classList.add('active');
+
+    document.querySelectorAll('.admin-tab-content').forEach(content => {
+        content.classList.add('hidden');
+    });
+
+    const targetTab = document.getElementById(`admin-tab-${tabName}`);
+    if (targetTab) {
+        targetTab.classList.remove('hidden');
+    }
+
+    if (tabName === 'schedule') {
+        renderAdminScheduler();
+    } else if (tabName === 'requests') {
+        renderAdminInbox();
+    } else if (tabName === 'staff') {
+        renderStaffList();
+    } else if (tabName === 'services') {
+        renderServiceList();
+        updateCategoryDropdown();
+    } else if (tabName === 'history') {
+        renderClientHistory();
+    } else if (tabName === 'reminders') {
+        renderReminders();
+    } else if (tabName === 'reports') {
+        generateReport();
+    }
 }
 
 function renderAdminInbox() {
@@ -806,7 +831,6 @@ function renderAdminInbox() {
 
     const pending = mockAppointments.filter(a => a.status === 'pending');
 
-    // Update badge
     const badge = document.getElementById('pending-count-badge');
     if (badge) {
         if (pending.length > 0) {
@@ -857,15 +881,15 @@ function renderAdminInbox() {
     }
 }
 
+// FIX: Updated renderAdminScheduler with proper filtering and rendering
 function renderAdminScheduler() {
     const grid = document.getElementById('scheduler-grid');
     if (!grid) return;
 
     const dateVal = document.getElementById('admin-date-filter')?.value || "";
     const techVal = document.getElementById('admin-tech-filter')?.value || "all";
-    const serviceVal = document.getElementById('admin-service-filter')?.value || "all";
+    const categoryVal = document.getElementById('admin-service-filter')?.value || "all";
 
-    // Show loading while technicians are being fetched
     if (technicians.length === 0) {
         grid.innerHTML = `
             <div style="text-align: center; padding: 60px 20px;">
@@ -921,19 +945,28 @@ function renderAdminScheduler() {
             cell.className = 'empty-grid-cell';
             cell.style.gridColumn = colIndex;
             cell.style.gridRow = i + 2;
-            cell.onclick = () => quickAddAppointment(tech.name, dateVal, timeStr);
+            cell.onclick = () => openAdminBookingModal(dateVal, timeStr, tech.name);
             grid.appendChild(cell);
         });
     }
 
+    // FIX: Improved appointment filtering logic
     mockAppointments.forEach(appt => {
         if (appt.status !== 'confirmed') return;
 
         const matchesDate = !dateVal || appt.date === dateVal;
         const matchesTech = techVal === 'all' || appt.tech === techVal;
-        const matchesService = serviceVal === 'all' || appt.services.includes(serviceVal);
+        
+        // FIX: Proper category filtering - check if ANY of the appointment's services match the category
+        let matchesCategory = categoryVal === 'all';
+        if (!matchesCategory && appt.serviceIds && Array.isArray(appt.serviceIds)) {
+            matchesCategory = appt.serviceIds.some(serviceId => {
+                const service = services.find(s => s.id === serviceId);
+                return service && service.category === categoryVal;
+            });
+        }
 
-        if (matchesDate && matchesTech && matchesService) {
+        if (matchesDate && matchesTech && matchesCategory) {
             const colIndex = techsToShow.findIndex(t => t.name === appt.tech);
             if (colIndex === -1) return;
 
@@ -956,472 +989,440 @@ function renderAdminScheduler() {
     });
 }
 
-function quickAddAppointment(tech, date, time) {
-    showView('booking-section');
+// FIX: Updated updateAdminFilterDropdowns to populate category filter
+function updateAdminFilterDropdowns() {
+    const techFilter = document.getElementById('admin-tech-filter');
+    const serviceFilter = document.getElementById('admin-service-filter');
 
-    const tSelect = document.getElementById('tech-select');
-    const dPicker = document.getElementById('date-picker');
-    const dForm = document.getElementById('details-form');
-
-    if (tSelect) tSelect.value = tech;
-
-    if (dPicker) {
-        const finalDate = date || new Date().toISOString().split('T')[0];
-        dPicker.value = finalDate;
-        if (dForm) dForm.classList.remove('hidden');
+    if (techFilter) {
+        const currentTech = techFilter.value;
+        techFilter.innerHTML = '<option value="all">All Specialists</option>';
+        technicians.forEach(t => {
+            const selected = t.name === currentTech ? 'selected' : '';
+            techFilter.innerHTML += `<option value="${t.name}" ${selected}>${t.name.charAt(0).toUpperCase() + t.name.slice(1)}</option>`;
+        });
     }
 
-    renderServiceCheckboxes();
-    updateBookingTotal();
-
-    setTimeout(() => {
-        const slots = document.querySelectorAll('.time-slot');
-        slots.forEach(slot => {
-            if (slot.innerText.trim() === time.trim()) {
-                selectSlot(slot);
-                slot.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // FIX: Populate category filter with unique categories from services
+    if (serviceFilter) {
+        const currentCategory = serviceFilter.value;
+        const categories = new Set();
+        services.forEach(service => {
+            if (service.category) {
+                categories.add(service.category);
             }
         });
-    }, 400);
+
+        serviceFilter.innerHTML = '<option value="all">All Categories</option>';
+        Array.from(categories).sort().forEach(cat => {
+            const selected = cat === currentCategory ? 'selected' : '';
+            serviceFilter.innerHTML += `<option value="${cat}" ${selected}>${cat}</option>`;
+        });
+    }
 }
 
 // ==========================================
-// LASER MANAGEMENT
+// ADMIN BOOKING MODAL (FIXED WITH 15MIN SLOTS)
 // ==========================================
-function toggleLaserForDate() {
-    const selectedDate = document.getElementById('admin-date-filter')?.value;
-    
-    if (!selectedDate) {
-        showNotification('Please select a date first', 'warning');
-        return;
-    }
+function openAdminBookingModal(presetDate, presetTime, presetTech) {
+    const modal = document.getElementById('admin-booking-modal');
+    modal.classList.add('active');
 
-    const laserRef = window.dbRef(window.db, 'laserDates');
-    
-    if (laserDates.includes(selectedDate)) {
-        // Disable laser for this date
-        const index = laserDates.indexOf(selectedDate);
-        laserDates.splice(index, 1);
-    } else {
-        // Enable laser for this date
-        laserDates.push(selectedDate);
-    }
+    // Store context for later use
+    adminBookingContext = { presetDate, presetTime, presetTech };
 
-    window.dbSet(laserRef, laserDates).then(() => {
-        showNotification(
-            laserDates.includes(selectedDate) ? 'Laser services enabled for this date' : 'Laser services disabled for this date',
-            'success'
-        );
-        updateLaserButton();
+    // Populate technician dropdown
+    const techSelect = document.getElementById('admin-booking-tech');
+    techSelect.innerHTML = '<option value="">Choose specialist...</option>';
+    technicians.forEach(tech => {
+        const selected = (tech.name === presetTech) ? 'selected' : '';
+        techSelect.innerHTML += `<option value="${tech.name}" ${selected}>${tech.name}</option>`;
+    });
+
+    // Set date
+    const dateInput = document.getElementById('admin-booking-date');
+    dateInput.value = presetDate || new Date().toISOString().split('T')[0];
+
+    // Render services
+    renderAdminBookingServices();
+
+    // Clear previous selections
+    document.getElementById('admin-client-name').value = '';
+    document.getElementById('admin-client-phone').value = '';
+    document.getElementById('admin-time-slots').innerHTML = '';
+    document.getElementById('admin-booking-details').classList.add('hidden');
+}
+
+function closeAdminBookingModal() {
+    document.getElementById('admin-booking-modal').classList.remove('active');
+    document.getElementById('admin-client-name').value = '';
+    document.getElementById('admin-client-phone').value = '';
+    document.getElementById('admin-booking-date').value = '';
+    document.getElementById('admin-booking-tech').value = '';
+    document.querySelectorAll('#admin-service-checkbox-list input[type="checkbox"]').forEach(cb => cb.checked = false);
+    document.getElementById('admin-time-slots').innerHTML = '';
+    document.getElementById('admin-booking-details').classList.add('hidden');
+    adminBookingContext = null;
+}
+
+function renderAdminBookingServices() {
+    const container = document.getElementById('admin-service-checkbox-list');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    const categories = {};
+    services.forEach(service => {
+        let catName = service.category || "General Services";
+        if (!categories[catName]) categories[catName] = [];
+        categories[catName].push(service);
+    });
+
+    Object.keys(categories).forEach(catName => {
+        const catBtn = document.createElement('button');
+        catBtn.className = 'category-toggle-btn';
+        catBtn.innerHTML = `<span>${catName}</span>`;
+        catBtn.onclick = (e) => {
+            e.preventDefault();
+            const isActive = catBtn.classList.toggle('active');
+            tray.classList.toggle('hidden', !isActive);
+        };
+
+        const tray = document.createElement('div');
+        tray.className = 'service-tray hidden';
+
+        categories[catName].forEach(service => {
+            const item = document.createElement('div');
+            item.className = 'checkbox-item';
+            item.innerHTML = `
+                <input type="checkbox"
+                       value="${service.id}"
+                       data-name="${service.name}"
+                       data-price="${service.price}"
+                       data-dur="${service.duration}"
+                       onchange="updateAdminBookingTotal()">
+                <span>${service.name}</span>
+                <div class="price-tag">$${service.price}</div>
+            `;
+            tray.appendChild(item);
+        });
+
+        container.appendChild(catBtn);
+        container.appendChild(tray);
     });
 }
 
-function updateLaserButton() {
-    const selectedDate = document.getElementById('admin-date-filter')?.value;
-    const btn = document.getElementById('toggle-laser-btn');
-    const statusText = document.getElementById('laser-status-text');
-    
-    if (!btn || !statusText) return;
+// FIX: Generate 15-minute time slots for admin booking
+function updateAdminBookingTotal() {
+    const checkboxes = document.querySelectorAll('#admin-service-checkbox-list input[type="checkbox"]:checked');
+    const detailsDiv = document.getElementById('admin-booking-details');
+    const timeSlotsContainer = document.getElementById('admin-time-slots');
 
-    if (selectedDate && laserDates.includes(selectedDate)) {
-        btn.classList.add('active');
-        statusText.textContent = 'Laser Enabled ✓';
+    if (checkboxes.length > 0) {
+        let total = 0;
+        let totalDuration = 0;
+        let serviceNames = [];
+
+        checkboxes.forEach(cb => {
+            total += parseFloat(cb.dataset.price);
+            totalDuration += parseInt(cb.dataset.dur);
+            serviceNames.push(cb.dataset.name);
+        });
+
+        detailsDiv.innerHTML = `
+            <h4>Booking Summary</h4>
+            <p><strong>Services:</strong> ${serviceNames.join(', ')}</p>
+            <p><strong>Total Duration:</strong> ${totalDuration} minutes</p>
+            <p><strong>Total Price:</strong> $${total}</p>
+        `;
+        detailsDiv.classList.remove('hidden');
+
+        // FIX: Generate 15min time slots like client booking
+        generateAdminTimeSlots(totalDuration);
     } else {
-        btn.classList.remove('active');
-        statusText.textContent = 'Enable Laser for Selected Date';
+        detailsDiv.classList.add('hidden');
+        timeSlotsContainer.innerHTML = '';
+    }
+}
+
+// FIX: New function to generate 15min time slots with busy checking for admin
+function generateAdminTimeSlots(totalDuration) {
+    const timeSlotsContainer = document.getElementById('admin-time-slots');
+    const selectedDate = document.getElementById('admin-booking-date').value;
+    const selectedTech = document.getElementById('admin-booking-tech').value;
+
+    if (!selectedDate || !selectedTech || totalDuration === 0) {
+        timeSlotsContainer.innerHTML = '<p style="text-align:center; padding:20px; color:var(--text-muted);">Select date, specialist, and services to see available times</p>';
+        return;
+    }
+
+    timeSlotsContainer.innerHTML = '';
+
+    let startMins = APP_SETTINGS.openingTime * 60;
+    const limitMins = APP_SETTINGS.closingTime * 60;
+
+    let slotsAdded = 0;
+
+    while (startMins + totalDuration <= limitMins) {
+        const isBusy = checkTechBusy(selectedTech, selectedDate, startMins, totalDuration);
+        if (!isBusy) {
+            const slot = document.createElement('div');
+            slot.className = 'time-slot';
+            slot.innerText = formatMinsToTime(startMins);
+            slot.dataset.minutes = startMins;
+            slot.onclick = () => selectAdminTimeSlot(slot);
+            
+            // Pre-select if matches preset time
+            if (adminBookingContext && adminBookingContext.presetTime === slot.innerText) {
+                slot.classList.add('selected');
+            }
+            
+            timeSlotsContainer.appendChild(slot);
+            slotsAdded++;
+        }
+        startMins += APP_SETTINGS.slotInterval;
+    }
+
+    if (slotsAdded === 0) {
+        timeSlotsContainer.innerHTML = '<p style="text-align:center; padding:20px; color:var(--warning);"><i class="fas fa-exclamation-circle"></i> No available slots for this date</p>';
+    }
+}
+
+function selectAdminTimeSlot(el) {
+    document.querySelectorAll('#admin-time-slots .time-slot').forEach(s => s.classList.remove('selected'));
+    el.classList.add('selected');
+}
+
+// FIX: Updated confirmAdminBooking to work with the new time slot system
+async function confirmAdminBooking() {
+    const clientName = document.getElementById('admin-client-name').value.trim();
+    const clientPhone = document.getElementById('admin-client-phone').value.trim();
+    const date = document.getElementById('admin-booking-date').value;
+    const techName = document.getElementById('admin-booking-tech').value;
+    const selectedTimeSlot = document.querySelector('#admin-time-slots .time-slot.selected');
+
+    const selectedServices = Array.from(document.querySelectorAll('#admin-service-checkbox-list input[type="checkbox"]:checked'));
+
+    if (!clientName || !clientPhone || !date || !techName || !selectedTimeSlot || selectedServices.length === 0) {
+        showNotification('Please fill all fields and select a time slot', 'warning');
+        return;
+    }
+
+    const time = selectedTimeSlot.innerText;
+    const selectedSpecialist = technicians.find(t => t.name === techName);
+
+    const bookingData = {
+        name: clientName,
+        phone: clientPhone,
+        email: 'booked-by-admin@salon.com',
+        userId: "ADMIN_MANUAL",
+        specialistId: selectedSpecialist ? (selectedSpecialist.userId || "") : "",
+        services: selectedServices.map(cb => cb.dataset.name),
+        serviceIds: selectedServices.map(cb => cb.value),
+        tech: techName,
+        time: time,
+        duration: selectedServices.reduce((sum, cb) => sum + parseInt(cb.dataset.dur || 30), 0),
+        price: selectedServices.reduce((sum, cb) => sum + parseFloat(cb.dataset.price || 0), 0),
+        date: date,
+        status: 'confirmed',
+        createdAt: new Date().toISOString()
+    };
+
+    try {
+        const appointmentsRef = window.dbRef(window.db, 'appointments');
+        const newApptRef = window.dbPush(appointmentsRef);
+        await window.dbSet(newApptRef, bookingData);
+
+        showNotification('Appointment created successfully!', 'success');
+        closeAdminBookingModal();
+
+        // FIX: Check if user exists and sync
+        await syncPhoneLinkedAppointments(null, clientPhone);
+
+        renderAdminScheduler();
+    } catch (error) {
+        console.error("Admin booking error:", error);
+        showNotification('Failed to save booking', 'danger');
     }
 }
 
 // ==========================================
-// BUSINESS MANAGEMENT
+// STAFF MANAGEMENT
 // ==========================================
 function renderStaffList() {
     const container = document.getElementById('staff-list-container');
     if (!container) return;
-    
-    container.innerHTML = technicians.map(t => `
+
+    if (technicians.length === 0) {
+        container.innerHTML = '<p style="text-align:center; padding:40px; color:var(--text-muted);">No staff members yet</p>';
+        return;
+    }
+
+    container.innerHTML = technicians.map(staff => `
         <div class="mgmt-item">
-            <div>
-                <span><i class="fas fa-user"></i> ${t.displayName || t.name.toUpperCase()}</span>
-                ${t.email ? `<br><small>${t.email}</small>` : ''}
-                ${t.phone ? `<br><small style="color: var(--text-muted);">${t.phone}</small>` : ''}
-                ${t.userId ? `<br><small style="color: var(--primary-tan); font-size: 0.7rem;">User ID: ${t.userId.substring(0, 8)}...</small>` : ''}
-                ${t.skills && t.skills.length > 0 ? `<br><small style="color: var(--success);">${t.skills.length} skills assigned</small>` : ''}
-                ${!t.userId ? `<br><small style="color: var(--warning); font-size: 0.7rem;"><i class="fas fa-exclamation-triangle"></i> No linked user account</small>` : ''}
+            <div class="mgmt-info">
+                <h4>${staff.name}</h4>
+                <p>${staff.email || 'No email'} | ${staff.phone || 'No phone'}</p>
+                <p style="font-size: 0.85rem; color: var(--text-muted);">
+                    <i class="fas fa-briefcase"></i> ${staff.skills ? staff.skills.length : 0} skills assigned
+                </p>
             </div>
-            <div style="display: flex; gap: 8px;">
-                <button onclick="openSkillsModal('${t.id}')" class="btn-skills" title="Manage Skills">
-                    <i class="fas fa-cog"></i>
+            <div class="mgmt-actions">
+                <button onclick="openSkillsModal('${staff.id}')" class="btn-skills">
+                    <i class="fas fa-cogs"></i> Manage Skills
                 </button>
-                ${t.userId ? `
-                    <button onclick="resetUserPassword('${t.userId}', '${t.email || t.name}')" class="btn-secondary-small" title="Reset Password">
-                        <i class="fas fa-key"></i>
-                    </button>
-                ` : ''}
-                ${t.userId ? `
-                    <button onclick="viewUserDetails('${t.userId}')" class="btn-info-small" title="View Account Details">
-                        <i class="fas fa-info-circle"></i>
-                    </button>
-                ` : ''}
-                <button onclick="removeStaff('${t.id}')" class="btn-delete-small">Delete</button>
+                <button onclick="deleteStaff('${staff.id}')" class="btn-delete-small">
+                    <i class="fas fa-trash"></i>
+                </button>
             </div>
-        </div>
-    `).join('');
-}
-
-// Add these helper functions:
-
-async function resetUserPassword(userId, userName) {
-    if (!currentUser || currentUser.role !== 'admin') {
-        showNotification('Admin access required', 'danger');
-        return;
-    }
-    
-    // Generate new password
-    const newPassword = generatePassword(8);
-    
-    // Note: In production, you'd use Firebase Admin SDK via Cloud Function
-    // For now, just show the new password to admin
-    showNotification(
-        `New password for ${userName}: ${newPassword}`,
-        'success',
-        10000 // Show for 10 seconds
-    );
-    
-    console.log(`Reset password for user ${userId} (${userName}): ${newPassword}`);
-}
-
-function viewUserDetails(userId) {
-    if (!currentUser || currentUser.role !== 'admin') {
-        showNotification('Admin access required', 'danger');
-        return;
-    }
-    
-    // Get user details from Firebase
-    const userRef = window.dbRef(window.db, `users/${userId}`);
-    window.dbGet(userRef).then((snapshot) => {
-        if (snapshot.exists()) {
-            const userData = snapshot.val();
-            const details = `
-                <strong>Account Details:</strong><br>
-                Name: ${userData.name}<br>
-                Email: ${userData.email}<br>
-                Role: ${userData.role}<br>
-                Phone: ${userData.phone || 'N/A'}<br>
-                Created: ${new Date(userData.createdAt).toLocaleDateString()}<br>
-                User ID: ${userId}
-            `;
-            
-            // Show in modal or alert
-            const modal = document.createElement('div');
-            modal.className = 'modal active';
-            modal.innerHTML = `
-                <div class="modal-backdrop" onclick="this.parentElement.remove()"></div>
-                <div class="modal-content" style="max-width: 500px;">
-                    <h3><i class="fas fa-user-circle"></i> User Account Details</h3>
-                    <div style="text-align: left; padding: 20px; background: var(--light-bg); border-radius: 10px; margin: 20px 0;">
-                        ${details}
-                    </div>
-                    <button onclick="this.parentElement.parentElement.remove()" class="btn-primary">
-                        <span>Close</span>
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            `;
-            document.body.appendChild(modal);
-        }
-    });
-}
-
-function renderServiceList() {
-    const container = document.getElementById('service-list-container');
-    if (!container) return;
-    
-    container.innerHTML = services.map(s => `
-        <div class="mgmt-item">
-            <span>
-                <i class="fas fa-cut"></i> ${s.name} 
-                <small>(${s.duration}m, $${s.price})</small>
-                ${s.requiresConfirmation ? '<span class="badge-confirm">Needs Approval</span>' : ''}
-            </span>
-            <button onclick="removeService('${s.id}')" class="btn-delete-small">Delete</button>
         </div>
     `).join('');
 }
 
 async function addStaff() {
-    // Check if user is admin
-    if (!currentUser || currentUser.role !== 'admin') {
-        showNotification('Admin access required', 'danger');
-        return;
-    }
-    
-    const nameInput = document.getElementById('new-staff-name');
-    const phoneInput = document.getElementById('new-staff-phone');
-    const emailInput = document.getElementById('new-staff-email'); // NEW: Add this input
-    const roleSelect = document.getElementById('new-staff-role'); // NEW: Add this select
-    
-    const name = nameInput.value.trim();
-    const phone = phoneInput.value.trim();
-    const email = emailInput?.value.trim().toLowerCase() || "";
-    const role = roleSelect?.value || "specialist";
-    
-    if (!name) {
-        showNotification('Please enter a name', 'warning');
-        return;
-    }
-    
-    if (!email) {
-        showNotification('Please enter an email address', 'warning');
-        return;
-    }
-    
-    if (!validateEmail(email)) {
-        showNotification('Please enter a valid email address', 'warning');
-        return;
-    }
+    const name = document.getElementById('new-staff-name').value.trim();
+    const email = document.getElementById('new-staff-email').value.trim();
+    const phone = document.getElementById('new-staff-phone').value.trim();
+    const password = document.getElementById('new-staff-password').value.trim();
+    const role = document.getElementById('new-staff-role').value;
 
+    if (!name || !email || !phone || !password) {
+        showNotification('Please fill all fields including password', 'warning');
+        return;
+    }
+      // Store admin credentials to re-authenticate after creating new user
+    const adminEmail = currentUser.email;
+    const adminPassword = prompt('Please enter your admin password to confirm:');
+    
+    if (!adminPassword) {
+        showNotification('Admin password required to add staff', 'warning');
+        return;
+    }
     try {
-        // Generate a secure random password (8 characters)
-        console.log("✅ STEP 1: Starting addStaff process");
-        const tempPassword = generatePassword(8);
-        
-        // 1. Create Firebase Auth account
-        const userCredential = await window.createUserWithEmailAndPassword(
-            window.auth, 
-            email, 
-            tempPassword
-        );
-        
-        const userId = userCredential.user.uid;
-        console.log("✅ STEP 2: Auth created, userId:", userId);
-        console.log(`Auth account created for ${email} with ID: ${userId}`);
-        
-        // 2. Save user data to users collection
+        const userCredential = await window.createUserWithEmailAndPassword(window.auth, email, password);
+        const newUserId = userCredential.user.uid;
         const userData = {
             email: email,
             name: name,
             phone: phone,
             role: role,
-            tempPassword: tempPassword, // Store temporarily for admin to see
-            createdAt: new Date().toISOString(),
-            createdBy: currentUser.uid
+            createdAt: new Date().toISOString()
         };
-        
-        const userRef = window.dbRef(window.db, `users/${userId}`);
-        console.log("✅ STEP 3: User data saved to /users/", userId);
+
+
+        const staffData = {
+            name: name,
+            email: email,
+            phone: phone,
+            userId: newUserId,
+            skills: [],
+            createdAt: new Date().toISOString()
+        };
+
+             // Immediately sign back in as admin to restore admin context
+        await window.signInWithEmailAndPassword(window.auth, adminEmail, adminPassword);
+
+        // Now write data with admin privileges
+        const userRef = window.dbRef(window.db, `users/${newUserId}`);
         await window.dbSet(userRef, userData);
-        
-        // 3. If specialist, add to technicians collection
-        if (role === 'specialist') {
-            console.log("✅ STEP 4: Adding as specialist");
-            const newStaff = {
-                name: name.toLowerCase(),
-                displayName: name,
-                phone: phone,
-                email: email,
-                userId: userId, // Link to user account
-                skills: [],
-                createdAt: new Date().toISOString()
-            };
 
-            const techRef = window.dbRef(window.db, 'technicians');
-            const newTechRef = window.dbPush(techRef);
-                    console.log("DEBUG: About to write to technicians");
-                    console.log("techRef path:", techRef.toString());
-                    console.log("newStaff data:", newStaff);
-            await window.dbSet(newTechRef, newStaff);
-        }
+                const techRef = window.dbRef(window.db, 'technicians');
+                const newTechRef = window.dbPush(techRef);
+                await window.dbSet(newTechRef, staffData);
+
+        document.getElementById('new-staff-name').value = '';
+        document.getElementById('new-staff-email').value = '';
+        document.getElementById('new-staff-phone').value = '';
+        document.getElementById('new-staff-password').value = '';
+
+        showNotification('Staff member added with account created!', 'success');
         
-        // 4. Clear form and show success
-        nameInput.value = '';
-        phoneInput.value = '';
-        if (emailInput) emailInput.value = '';
-        if (roleSelect) roleSelect.value = 'specialist';
-        
-        // 5. Show success with password info
-        showNotification(
-            `${role.charAt(0).toUpperCase() + role.slice(1)} account created successfully! ` +
-            `Temporary password: ${tempPassword}`,
-            'success'
-        );
-        
-        // 6. Log to console for admin reference
-        console.log(`Account created for ${name} (${role})`);
-        console.log(`Email: ${email}`);
-        console.log(`Temporary password: ${tempPassword}`);
-        console.log(`User ID: ${userId}`);
-        
+        // FIX: Force refresh of scheduler to show new staff column
+        setTimeout(() => {
+            renderAdminScheduler();
+        }, 500);
     } catch (error) {
-        console.error("Error creating staff account:", error);
-        let message = 'Failed to create staff account. ';
+        console.error("Add staff error:", error);
         if (error.code === 'auth/email-already-in-use') {
-            message = 'Email already in use. ';
-        } else if (error.code === 'auth/invalid-email') {
-            message = 'Invalid email address. ';
-        } else if (error.code === 'auth/weak-password') {
-            message = 'Password is too weak. ';
+            showNotification('Email already in use', 'danger');
+                    } else if (error.code === 'auth/wrong-password') {
+            showNotification('Incorrect admin password', 'danger');
+        } else {
+            showNotification('Failed to add staff: ' + error.message, 'danger');
         }
-        showNotification(message + error.message, 'danger');
     }
 }
 
-async function removeStaff(id) {
-    if (!currentUser || currentUser.role !== 'admin') {
-        showNotification('Admin access required', 'danger');
-        return;
-    }
-    
-    if (!confirm('Remove this team member? This will delete their technician entry but NOT their user account.')) return;
+async function deleteStaff(staffId) {
+    if (!confirm('Are you sure you want to delete this staff member?')) return;
 
-    const techRef = window.dbRef(window.db, `technicians/${id}`);
-    
     try {
+        const techRef = window.dbRef(window.db, `technicians/${staffId}`);
         await window.dbRemove(techRef);
-        showNotification('Team member removed from technicians list', 'info');
-    } catch (error) {
-        console.error(error);
-        showNotification('Failed to remove team member', 'danger');
-    }
-}
-
-// Helper function to generate random password
-function generatePassword(length = 8) {
-    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
-    let password = "";
-    for (let i = 0; i < length; i++) {
-        password += charset.charAt(Math.floor(Math.random() * charset.length));
-    }
-    return password;
-}
-
-// Helper function to validate email
-function validateEmail(email) {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(email);
-}
-
-// Function to delete user account completely (admin only)
-async function deleteUserAccount(userId) {
-    if (!currentUser || currentUser.role !== 'admin') {
-        showNotification('Admin access required', 'danger');
-        return;
-    }
-    
-    if (!confirm('WARNING: This will permanently delete the user account, including all their data. Continue?')) return;
-    
-    try {
-        // Note: In production, you'd need a Cloud Function to delete Auth account
-        // For now, just remove from database
-        const userRef = window.dbRef(window.db, `users/${userId}`);
-        await window.dbRemove(userRef);
+        showNotification('Staff member deleted', 'info');
         
-        // Also remove from technicians if they were a specialist
-        const techsRef = window.dbRef(window.db, 'technicians');
-        const techsSnapshot = await window.dbGet(techsRef);
-        if (techsSnapshot.exists()) {
-            const techs = techsSnapshot.val();
-            for (const [techId, tech] of Object.entries(techs)) {
-                if (tech.userId === userId) {
-                    const techRef = window.dbRef(window.db, `technicians/${techId}`);
-                    await window.dbRemove(techRef);
-                }
-            }
-        }
-        
-        showNotification('User account deleted successfully', 'success');
+        // FIX: Force refresh of scheduler after staff deletion
+        setTimeout(() => {
+            renderAdminScheduler();
+        }, 500);
     } catch (error) {
-        console.error("Error deleting user account:", error);
-        showNotification('Failed to delete user account', 'danger');
+        console.error("Delete staff error:", error);
+        showNotification('Failed to delete staff', 'danger');
     }
 }
 
-async function addService() {
-    const nameInput = document.getElementById('new-service-name');
-    const durInput = document.getElementById('new-service-dur');
-    const priceInput = document.getElementById('new-service-price');
-    const confirmCheckbox = document.getElementById('new-service-confirm');
-    const categoryInput = document.getElementById('new-service-category');
-
-    const name = nameInput.value.trim();
-    const duration = parseInt(durInput.value);
-    const price = parseInt(priceInput.value);
-    const requiresConfirmation = confirmCheckbox.checked;
-    const category = categoryInput.value.trim() || "Other";
-
-    if (!name || !duration || isNaN(duration) || duration <= 0 || isNaN(price) || price < 0) {
-        showNotification('Please fill in name, duration (positive number), and price (non-negative number)', 'warning');
-        return;
-    }
-
-    const newSrv = {
-        name: name,
-        duration: duration,
-        price: price,
-        requiresConfirmation: requiresConfirmation,
-        category: category
-    };
-
-    const servicesRef = window.dbRef(window.db, 'services');
-    const newServiceRef = window.dbPush(servicesRef);
-
-    try {
-        await window.dbSet(newServiceRef, newSrv);
-        nameInput.value = '';
-        durInput.value = '';
-        priceInput.value = '';
-        confirmCheckbox.checked = false;
-        categoryInput.value = '';
-        showNotification('Service added successfully!', 'success');
-    } catch (error) {
-        console.error(error);
-        showNotification('Failed to add service', 'danger');
-    }
-}
-
-async function removeService(id) {
-    if (!confirm("Delete this service?")) return;
-
-    const serviceRef = window.dbRef(window.db, `services/${id}`);
-    
-    try {
-        await window.dbRemove(serviceRef);
-        showNotification('Service removed', 'info');
-    } catch (error) {
-        console.error(error);
-        showNotification('Failed to remove service', 'danger');
-    }
-}
-
-// ==========================================
-// STAFF SKILLS MANAGEMENT
-// ==========================================
 function openSkillsModal(staffId) {
     currentEditingStaff = staffId;
     const staff = technicians.find(t => t.id === staffId);
-    
+
     if (!staff) return;
 
     document.getElementById('skills-modal-title').textContent = `Manage Skills for ${staff.name.toUpperCase()}`;
-    
+    document.getElementById('skills-modal').classList.add('active');
+
+    renderSkillsModalContent(staff);
+}
+
+function renderSkillsModalContent(staff) {
     const container = document.getElementById('skills-checkbox-list');
     container.innerHTML = '';
 
+    const categories = {};
     services.forEach(service => {
-        const item = document.createElement('div');
-        item.className = 'checkbox-item';
-        
-        const isAssigned = staff.skills && staff.skills.includes(service.id);
-        
-        item.innerHTML = `
-            <input type="checkbox" value="${service.id}" ${isAssigned ? 'checked' : ''}>
-            <span>${service.name}</span>
-        `;
-        
-        container.appendChild(item);
+        let catName = service.category || "General Services";
+        if (!categories[catName]) categories[catName] = [];
+        categories[catName].push(service);
     });
 
-    document.getElementById('skills-modal').classList.add('active');
+    Object.keys(categories).forEach(catName => {
+        const catBtn = document.createElement('button');
+        catBtn.className = 'category-toggle-btn';
+        catBtn.innerHTML = `<span>${catName}</span>`;
+        catBtn.onclick = (e) => {
+            e.preventDefault();
+            const isActive = catBtn.classList.toggle('active');
+            tray.classList.toggle('hidden', !isActive);
+        };
+
+        const tray = document.createElement('div');
+        tray.className = 'service-tray hidden';
+
+        categories[catName].forEach(service => {
+            const isChecked = staff.skills && staff.skills.includes(service.id);
+            const item = document.createElement('div');
+            item.className = 'checkbox-item';
+            item.innerHTML = `
+                <input type="checkbox"
+                       value="${service.id}"
+                       ${isChecked ? 'checked' : ''}>
+                <span>${service.name}</span>
+            `;
+            tray.appendChild(item);
+        });
+
+        container.appendChild(catBtn);
+        container.appendChild(tray);
+    });
 }
 
 function closeSkillsModal() {
@@ -1432,453 +1433,791 @@ function closeSkillsModal() {
 async function saveStaffSkills() {
     if (!currentEditingStaff) return;
 
-    const checked = Array.from(document.querySelectorAll('#skills-checkbox-list input:checked'));
-    const skillIds = checked.map(cb => cb.value);
+    const selectedSkills = Array.from(
+        document.querySelectorAll('#skills-checkbox-list input[type="checkbox"]:checked')
+    ).map(cb => cb.value);
 
-    const techRef = window.dbRef(window.db, `technicians/${currentEditingStaff}`);
-    
     try {
-        await window.dbUpdate(techRef, { skills: skillIds });
-        showNotification('Skills updated successfully!', 'success');
+        const techRef = window.dbRef(window.db, `technicians/${currentEditingStaff}`);
+        await window.dbUpdate(techRef, { skills: selectedSkills });
+
+        showNotification('Skills updated successfully', 'success');
         closeSkillsModal();
     } catch (error) {
-        console.error(error);
+        console.error("Save skills error:", error);
         showNotification('Failed to update skills', 'danger');
     }
 }
 
 // ==========================================
-// APPOINTMENT MANAGEMENT
+// SERVICES MANAGEMENT (FIXED WITH CATEGORY DROPDOWN)
 // ==========================================
-async function confirmBooking(fbId) {
-    const apptRef = window.dbRef(window.db, `appointments/${fbId}`);
+function renderServiceList() {
+    const container = document.getElementById('service-list-container');
+    if (!container) return;
 
-    try {
-        await window.dbUpdate(apptRef, { status: 'confirmed' });
-        showNotification('Appointment confirmed!', 'success');
-        
-        // Also send notification about the confirmation
-        const appointment = mockAppointments.find(a => a.firebaseId === fbId);
-        if (appointment) {
-            sendBookingNotification({
-                ...appointment,
-                type: 'booking_confirmed',
-                title: '✅ Booking Confirmed'
-            });
-        }
-    } catch (err) {
-        console.error("Error confirming:", err);
-        showNotification('Failed to confirm appointment', 'danger');
+    if (services.length === 0) {
+        container.innerHTML = '<p style="text-align:center; padding:40px; color:var(--text-muted);">No services yet</p>';
+        return;
     }
+
+    const categories = {};
+    services.forEach(service => {
+        let catName = service.category || "General Services";
+        if (!categories[catName]) categories[catName] = [];
+        categories[catName].push(service);
+    });
+
+    container.innerHTML = Object.keys(categories).map(catName => `
+        <div style="margin-bottom: 30px;">
+            <h4 style="font-family: 'Playfair Display'; font-size: 1.3rem; margin-bottom: 15px; color: var(--primary-dark); border-bottom: 2px solid var(--primary-tan); padding-bottom: 10px;">
+                ${catName}
+            </h4>
+            ${categories[catName].map(service => `
+                <div class="mgmt-item">
+                    <div class="mgmt-info">
+                        <h4>${service.name}</h4>
+                        <p>
+                            <span class="price-tag">$${service.price || 0}</span>
+                            <span style="margin-left: 15px;"><i class="fas fa-clock"></i> ${service.duration || 30} min</span>
+                            ${service.requiresConfirmation ? '<span class="badge-confirm"><i class="fas fa-shield-alt"></i> Requires Approval</span>' : ''}
+                        </p>
+                    </div>
+                    <div class="mgmt-actions">
+                        <button onclick="deleteService('${service.id}')" class="btn-delete-small">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `).join('');
 }
 
-async function deleteAppointment(firebaseId) {
-    if (!confirm("Cancel this appointment?")) return;
+// FIX: Update category dropdown with existing categories
+function updateCategoryDropdown() {
+    const categorySelect = document.getElementById('new-service-category');
+    if (!categorySelect) return;
 
-    const apptRef = window.dbRef(window.db, `appointments/${firebaseId}`);
-
-    try {
-        await window.dbRemove(apptRef);
-        showNotification('Appointment cancelled', 'info');
-    } catch (error) {
-        console.error("Delete failed:", error);
-        showNotification('Failed to cancel appointment', 'danger');
-    }
-}
-
-// ==========================================
-// NOTIFICATION SYSTEM
-// ==========================================
-let userInteracted = false;
-document.addEventListener('click', () => {
-    userInteracted = true;
-}, { once: true });
-
-function playNotificationSound(type = 'booking') {
-    // Don't play sound until user has interacted with the page
-    if (!userInteracted) return;
+    const currentValue = categorySelect.value;
     
-    try {
-        // First try Web Audio API (works offline and doesn't need network)
-        try {
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            
-            // Different frequencies for different notification types
-            let frequency = 600; // Default
-            if (type === 'alert') frequency = 800;
-            if (type === 'success') frequency = 700;
-            
-            oscillator.frequency.value = frequency;
-            oscillator.type = 'sine';
-            
-            gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-            
-            oscillator.start(audioContext.currentTime);
-            oscillator.stop(audioContext.currentTime + 0.5);
-            
-            return; // Success - don't try external sounds
-        } catch (e) {
-            // Web Audio API failed, continue to external sounds
+    // Get unique categories
+    const categories = new Set();
+    services.forEach(service => {
+        if (service.category) {
+            categories.add(service.category);
         }
-        
-        // Only try external sounds if we're online
-        if (navigator.onLine) {
-            const audio = new Audio();
-            
-            // Different sounds for different notification types
-            switch(type) {
-                case 'booking':
-                    audio.src = 'https://assets.mixkit.co/sfx/preview/mixkit-correct-answer-tone-2870.mp3';
-                    break;
-                case 'alert':
-                    audio.src = 'https://assets.mixkit.co/sfx/preview/mixkit-warning-alarm-buzzer-711.mp3';
-                    break;
-                case 'success':
-                    audio.src = 'https://assets.mixkit.co/sfx/preview/mixkit-achievement-bell-600.mp3';
-                    break;
-                default:
-                    audio.src = 'https://assets.mixkit.co/sfx/preview/mixkit-message-pop-alert-2354.mp3';
+    });
+
+    // Build dropdown HTML
+    categorySelect.innerHTML = '<option value="">Select Category...</option>';
+    
+    Array.from(categories).sort().forEach(cat => {
+        const selected = cat === currentValue ? 'selected' : '';
+        categorySelect.innerHTML += `<option value="${cat}" ${selected}>${cat}</option>`;
+    });
+    
+    categorySelect.innerHTML += '<option value="__ADD_NEW__">➕ Add New Category</option>';
+
+    // Handle "Add New Category" selection
+    categorySelect.onchange = function() {
+        if (this.value === '__ADD_NEW__') {
+            const newCategory = prompt('Enter new category name:');
+            if (newCategory && newCategory.trim()) {
+                const trimmedCategory = newCategory.trim();
+                this.innerHTML = this.innerHTML.replace(
+                    '<option value="__ADD_NEW__">➕ Add New Category</option>',
+                    `<option value="${trimmedCategory}" selected>${trimmedCategory}</option><option value="__ADD_NEW__">➕ Add New Category</option>`
+                );
+                this.value = trimmedCategory;
+            } else {
+                this.value = '';
             }
-            
-            audio.volume = 0.4;
-            const playPromise = audio.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(() => {
-                    // Silent fail - don't log errors
+        }
+    };
+}
+
+async function addService() {
+    const name = document.getElementById('new-service-name').value.trim();
+    const category = document.getElementById('new-service-category').value.trim();
+    const price = parseFloat(document.getElementById('new-service-price').value) || 0;
+    const duration = parseInt(document.getElementById('new-service-dur').value) || 30;
+    const requiresConfirmation = document.getElementById('new-service-confirm').checked;
+
+    if (!name) {
+        showNotification('Please enter service name', 'warning');
+        return;
+    }
+
+    if (!category || category === '__ADD_NEW__') {
+        showNotification('Please select or add a category', 'warning');
+        return;
+    }
+
+    const serviceData = {
+        name: name,
+        category: category,
+        price: price,
+        duration: duration,
+        requiresConfirmation: requiresConfirmation,
+        createdAt: new Date().toISOString()
+    };
+
+    try {
+        const servicesRef = window.dbRef(window.db, 'services');
+        await window.dbPush(servicesRef).then(ref => window.dbSet(ref, serviceData));
+
+        document.getElementById('new-service-name').value = '';
+        document.getElementById('new-service-category').value = '';
+        document.getElementById('new-service-price').value = '';
+        document.getElementById('new-service-dur').value = '';
+        document.getElementById('new-service-confirm').checked = false;
+
+        showNotification('Service added successfully', 'success');
+    } catch (error) {
+        console.error("Add service error:", error);
+        showNotification('Failed to add service', 'danger');
+    }
+}
+
+async function deleteService(serviceId) {
+    if (!confirm('Are you sure you want to delete this service?')) return;
+
+    try {
+        const serviceRef = window.dbRef(window.db, `services/${serviceId}`);
+        await window.dbRemove(serviceRef);
+        showNotification('Service deleted', 'info');
+    } catch (error) {
+        console.error("Delete service error:", error);
+        showNotification('Failed to delete service', 'danger');
+    }
+}
+
+// ==========================================
+// CLIENT HISTORY
+// ==========================================
+function renderClientHistory() {
+    const searchInput = document.getElementById('client-search-input');
+    if (searchInput) {
+        searchInput.oninput = performClientSearch;
+    }
+
+    const resultsContainer = document.getElementById('client-history-results');
+    if (resultsContainer) {
+        resultsContainer.innerHTML = '<p style="text-align:center; color:var(--text-muted); padding:40px;"><i class="fas fa-search"></i><br>Search for a client by name or phone number</p>';
+    }
+}
+
+function performClientSearch() {
+    const searchTerm = document.getElementById('client-search-input').value.trim().toLowerCase();
+    const resultsContainer = document.getElementById('client-history-results');
+
+    if (!searchTerm) {
+        resultsContainer.innerHTML = '<p style="text-align:center; color:var(--text-muted); padding:40px;"><i class="fas fa-search"></i><br>Search for a client by name or phone number</p>';
+        return;
+    }
+
+    const clientAppointments = {};
+
+    mockAppointments.forEach(appt => {
+        const matchesName = appt.name && appt.name.toLowerCase().includes(searchTerm);
+        const matchesPhone = appt.phone && appt.phone.includes(searchTerm);
+
+        if (matchesName || matchesPhone) {
+            const key = appt.phone || appt.name;
+            if (!clientAppointments[key]) {
+                clientAppointments[key] = {
+                    name: appt.name,
+                    phone: appt.phone,
+                    email: appt.email,
+                    appointments: []
+                };
+            }
+            clientAppointments[key].appointments.push(appt);
+        }
+    });
+
+    const clients = Object.values(clientAppointments);
+
+    if (clients.length === 0) {
+        resultsContainer.innerHTML = '<p style="text-align:center; color:var(--text-muted); padding:40px;"><i class="fas fa-user-slash"></i><br>No clients found</p>';
+        return;
+    }
+
+    resultsContainer.innerHTML = clients.map(client => {
+        client.appointments.sort((a, b) => {
+            const dateA = new Date(a.date + 'T' + a.time);
+            const dateB = new Date(b.date + 'T' + b.time);
+            return dateB - dateA;
+        });
+
+        const upcomingCount = client.appointments.filter(a => {
+            const apptDate = new Date(a.date + 'T' + a.time);
+            return apptDate >= new Date() && a.status !== 'cancelled';
+        }).length;
+
+        const completedCount = client.appointments.filter(a => {
+            const apptDate = new Date(a.date + 'T' + a.time);
+            return apptDate < new Date() && a.status === 'confirmed';
+        }).length;
+
+        return `
+            <div class="client-history-card">
+                <div class="client-info-header">
+                    <div>
+                        <h3><i class="fas fa-user-circle"></i> ${client.name}</h3>
+                        <p><i class="fas fa-phone"></i> ${client.phone || 'N/A'}</p>
+                        <p><i class="fas fa-envelope"></i> ${client.email || 'N/A'}</p>
+                    </div>
+                    <div class="client-stats">
+                        <div class="stat-badge">
+                            <i class="fas fa-calendar-check"></i>
+                            <span>${upcomingCount} Upcoming</span>
+                        </div>
+                        <div class="stat-badge">
+                            <i class="fas fa-check-circle"></i>
+                            <span>${completedCount} Completed</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="client-appointments-list">
+                    <h4 style="margin-bottom: 15px; color: var(--primary-dark);">Appointment History</h4>
+                    ${client.appointments.map(appt => {
+                        const statusClass = appt.status === 'confirmed' ? 'success' :
+                                          appt.status === 'pending' ? 'warning' : 'muted';
+                        const statusIcon = appt.status === 'confirmed' ? 'fa-check-circle' :
+                                         appt.status === 'pending' ? 'fa-clock' : 'fa-times-circle';
+
+                        return `
+                            <div class="appointment-mini-card">
+                                <div class="appt-mini-header">
+                                    <span><strong>${new Date(appt.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</strong> at ${appt.time}</span>
+                                    <span class="badge badge-${statusClass}">
+                                        <i class="fas ${statusIcon}"></i> ${appt.status}
+                                    </span>
+                                </div>
+                                <div class="appt-mini-details">
+                                    <p><i class="fas fa-user-tie"></i> ${appt.tech}</p>
+                                    <p><i class="fas fa-concierge-bell"></i> ${Array.isArray(appt.services) ? appt.services.join(', ') : appt.services}</p>
+                                    <p><i class="fas fa-dollar-sign"></i> $${appt.price}</p>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ==========================================
+// REMINDERS
+// ==========================================
+function renderReminders() {
+    const container = document.getElementById('reminders-list');
+    if (!container) return;
+
+    const filterDate = document.getElementById('reminder-date-filter').value;
+    const filterType = document.getElementById('reminder-type-filter').value;
+
+    let upcomingAppointments = mockAppointments.filter(appt => {
+        if (appt.status !== 'confirmed') return false;
+
+        const apptDate = new Date(appt.date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        if (filterDate) {
+            return appt.date === filterDate;
+        } else {
+            const weekFromNow = new Date(today);
+            weekFromNow.setDate(today.getDate() + 7);
+            return apptDate >= today && apptDate <= weekFromNow;
+        }
+    });
+
+    if (upcomingAppointments.length === 0) {
+        container.innerHTML = '<p style="text-align:center; padding:40px; color:var(--text-muted);"><i class="fas fa-bell-slash"></i><br>No upcoming appointments to send reminders</p>';
+        return;
+    }
+
+    const reminders = [];
+
+    upcomingAppointments.forEach(appt => {
+        const apptDate = new Date(appt.date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const daysUntil = Math.ceil((apptDate - today) / (1000 * 60 * 60 * 24));
+
+        if (filterType === 'all' || filterType === 'client') {
+            if (appt.phone) {
+                reminders.push({
+                    type: 'client',
+                    appointment: appt,
+                    daysUntil: daysUntil,
+                    phone: appt.phone,
+                    name: appt.name
                 });
             }
         }
-    } catch (e) {
-        // Silent fail
-    }
-}
 
-function sendBookingNotification(booking) {
-    // Create a notification object
-    const notification = {
-        type: 'new_booking',
-        title: booking.status === 'pending' ? '📋 New Booking Request' : '✅ New Booking Confirmed',
-        message: `${booking.name} booked ${booking.services.join(', ')} with ${booking.tech}`,
-        details: {
-            client: booking.name,
-            services: booking.services,
-            specialist: booking.tech,
-            date: booking.date,
-            time: booking.time,
-            status: booking.status
-        },
-        timestamp: new Date().toISOString(),
-        read: false,
-        forAdmin: true,
-        forSpecialist: booking.tech
-    };
-
-    // Save to Firebase
-    const notificationsRef = window.dbRef(window.db, 'notifications');
-    const newNotificationRef = window.dbPush(notificationsRef);
-    
-    // Save the notification with its key
-    const notificationWithKey = {
-        ...notification,
-        key: newNotificationRef.key
-    };
-    
-    window.dbSet(newNotificationRef, notification).then(() => {
-        console.log("Booking notification saved to Firebase");
-        
-        // Also show immediate on-screen notification if user is logged in as admin or the assigned specialist
-        if (currentUser && (currentUser.role === 'admin' || currentUser.name === booking.tech)) {
-            showPersistentNotification(notificationWithKey);
+        if (filterType === 'all' || filterType === 'staff') {
+            const specialist = technicians.find(t => t.name === appt.tech);
+            if (specialist && specialist.phone) {
+                reminders.push({
+                    type: 'staff',
+                    appointment: appt,
+                    daysUntil: daysUntil,
+                    phone: specialist.phone,
+                    name: specialist.name
+                });
+            }
         }
-    }).catch(error => {
-        console.error("Failed to save notification:", error);
     });
+
+    if (reminders.length === 0) {
+        container.innerHTML = '<p style="text-align:center; padding:40px; color:var(--text-muted);"><i class="fas fa-phone-slash"></i><br>No phone numbers available for reminders</p>';
+        return;
+    }
+
+    container.innerHTML = reminders.map((reminder, index) => {
+        const appt = reminder.appointment;
+        const urgencyClass = reminder.daysUntil === 0 ? 'urgent' : reminder.daysUntil <= 1 ? 'soon' : '';
+        const reminderKey = `${appt.firebaseId}_${reminder.type}`;
+        const isSent = localStorage.getItem(`reminder_sent_${reminderKey}`) === 'true';
+
+        return `
+            <div class="reminder-card">
+                <div class="reminder-header">
+                    <div>
+                        <h4>${reminder.type === 'client' ? 'Client' : 'Staff'} Reminder</h4>
+                        <p><strong>${reminder.name}</strong></p>
+                    </div>
+                    <div class="days-badge ${urgencyClass}">
+                        ${reminder.daysUntil === 0 ? 'Today' : reminder.daysUntil === 1 ? 'Tomorrow' : `In ${reminder.daysUntil} days`}
+                    </div>
+                </div>
+
+                <div class="reminder-details">
+                    <p><i class="fas fa-phone"></i> ${reminder.phone}</p>
+                    <p><i class="fas fa-calendar"></i> ${appt.date} at ${appt.time}</p>
+                    <p><i class="fas fa-concierge-bell"></i> ${appt.services.join(', ')}</p>
+                    ${reminder.type === 'staff' ? `<p><i class="fas fa-user"></i> Client: ${appt.name}</p>` : ''}
+                </div>
+
+                <button
+                    onclick="sendWhatsAppReminder('${reminderKey}', '${reminder.phone}', '${reminder.name}', '${appt.date}', '${appt.time}', '${appt.services.join(', ')}', '${reminder.type}')"
+                    class="btn-reminder ${isSent ? 'sent' : ''}"
+                    ${isSent ? 'disabled' : ''}>
+                    <i class="fas ${isSent ? 'fa-check-circle' : 'fa-paper-plane'}"></i>
+                    <span>${isSent ? 'Reminder Sent' : 'Send Reminder'}</span>
+                </button>
+            </div>
+        `;
+    }).join('');
 }
 
-function showPersistentNotification(notification) {
-    // Check if this notification is already displayed
-    const notificationId = `notification-${notification.key || notification.timestamp}`;
-    if (document.getElementById(notificationId)) {
-        return; // Already showing
+function sendWhatsAppReminder(reminderKey, phone, name, date, time, services, type) {
+    let message = '';
+
+    if (type === 'client') {
+        message = `Hello ${name}! 👋\n\nThis is a reminder for your appointment at Plume Blanche:\n\n📅 Date: ${date}\n⏰ Time: ${time}\n💅 Services: ${services}\n\nWe look forward to seeing you!\n\n- Plume Blanche Team`;
+    } else {
+        message = `Hello ${name}! 👋\n\nAppointment reminder:\n\n📅 Date: ${date}\n⏰ Time: ${time}\n💅 Services: ${services}\n\nThank you!\n\n- Plume Blanche`;
     }
-    
-    // Create a persistent notification that stays until closed
-    const notificationEl = document.createElement('div');
-    notificationEl.id = notificationId;
-    notificationEl.className = 'immediate-notification persistent';
-    notificationEl.innerHTML = `
-        <div class="notification-header">
-            <i class="fas fa-bell"></i>
-            <strong>${notification.title}</strong>
-            <button class="close-notification" onclick="removeNotification('${notificationId}')">×</button>
-        </div>
-        <div class="notification-body">
-            ${notification.message}
-            <div style="font-size:0.85rem; margin-top:8px; color:var(--text-muted);">
-                <i class="fas fa-clock"></i> ${new Date(notification.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+
+    const cleanPhone = phone.replace('+', '');
+    const whatsappURL = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappURL, '_blank');
+
+    localStorage.setItem(`reminder_sent_${reminderKey}`, 'true');
+    renderReminders();
+
+    showNotification('WhatsApp opened with reminder message', 'success');
+}
+
+// ==========================================
+// REPORTS FEATURE (NEW - COMPREHENSIVE)
+// ==========================================
+function generateReport() {
+    const reportType = document.getElementById('report-type-filter').value;
+    const selectedDate = document.getElementById('report-date-filter').value || new Date().toISOString().split('T')[0];
+    const container = document.getElementById('report-container');
+
+    if (!container) return;
+
+    // Calculate date range based on report type
+    const { startDate, endDate } = getReportDateRange(reportType, selectedDate);
+
+    // Filter appointments within date range
+    const reportAppointments = mockAppointments.filter(appt => {
+        const apptDate = new Date(appt.date);
+        return apptDate >= startDate && apptDate <= endDate && appt.status === 'confirmed';
+    });
+
+    // Calculate metrics
+    const metrics = calculateReportMetrics(reportAppointments);
+
+    // Generate report HTML
+    container.innerHTML = `
+        <div class="card admin-card" style="margin-top: 30px;">
+            <div class="card-subheader">
+                <h3>
+                    <i class="fas fa-chart-line"></i>
+                    ${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Report
+                </h3>
+                <p>${formatDateRange(startDate, endDate)}</p>
             </div>
+
+            <!-- Financial Metrics -->
+            <div style="margin-bottom: 40px;">
+                <h4 style="font-family: 'Playfair Display'; font-size: 1.5rem; margin-bottom: 20px; color: var(--primary-dark);">
+                    <i class="fas fa-dollar-sign"></i> Financial Overview
+                </h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                    <div class="stat-card" style="padding: 20px; background: var(--gradient-soft); border-radius: 16px; border: 2px solid rgba(188, 148, 127, 0.2);">
+                        <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">
+                            <i class="fas fa-hand-holding-usd"></i> Total Revenue
+                        </div>
+                        <div style="font-size: 2rem; font-weight: 700; color: var(--primary-dark);">
+                            $${metrics.financial.totalRevenue}
+                        </div>
+                    </div>
+                    <div class="stat-card" style="padding: 20px; background: var(--gradient-soft); border-radius: 16px; border: 2px solid rgba(188, 148, 127, 0.2);">
+                        <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">
+                            <i class="fas fa-chart-line"></i> Average Transaction
+                        </div>
+                        <div style="font-size: 2rem; font-weight: 700; color: var(--primary-dark);">
+                            $${metrics.financial.avgTransaction}
+                        </div>
+                    </div>
+                    <div class="stat-card" style="padding: 20px; background: var(--gradient-soft); border-radius: 16px; border: 2px solid rgba(188, 148, 127, 0.2);">
+                        <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">
+                            <i class="fas fa-receipt"></i> Total Appointments
+                        </div>
+                        <div style="font-size: 2rem; font-weight: 700; color: var(--primary-dark);">
+                            ${metrics.financial.totalAppointments}
+                        </div>
+                    </div>
+                </div>
+
+                <h5 style="margin-top: 30px; margin-bottom: 15px; color: var(--primary-dark);">
+                    <i class="fas fa-concierge-bell"></i> Revenue by Service
+                </h5>
+                <div style="background: white; padding: 20px; border-radius: 12px; border: 2px solid rgba(188, 148, 127, 0.2);">
+                    ${metrics.financial.revenueByService.map(item => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid rgba(188, 148, 127, 0.1);">
+                            <span style="font-weight: 600;">${item.service}</span>
+                            <span style="color: var(--primary-dark); font-weight: 700;">$${item.revenue} <span style="color: var(--text-muted); font-size: 0.85rem;">(${item.count} bookings)</span></span>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <h5 style="margin-top: 30px; margin-bottom: 15px; color: var(--primary-dark);">
+                    <i class="fas fa-user-tie"></i> Revenue by Staff
+                </h5>
+                <div style="background: white; padding: 20px; border-radius: 12px; border: 2px solid rgba(188, 148, 127, 0.2);">
+                    ${metrics.financial.revenueByStaff.map(item => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid rgba(188, 148, 127, 0.1);">
+                            <span style="font-weight: 600;">${item.staff}</span>
+                            <span style="color: var(--primary-dark); font-weight: 700;">$${item.revenue} <span style="color: var(--text-muted); font-size: 0.85rem;">(${item.count} appointments)</span></span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+
+            <!-- Client Metrics -->
+            <div style="margin-bottom: 40px;">
+                <h4 style="font-family: 'Playfair Display'; font-size: 1.5rem; margin-bottom: 20px; color: var(--primary-dark);">
+                    <i class="fas fa-users"></i> Client Analytics
+                </h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                    <div class="stat-card" style="padding: 20px; background: var(--gradient-soft); border-radius: 16px; border: 2px solid rgba(188, 148, 127, 0.2);">
+                        <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">
+                            <i class="fas fa-user-plus"></i> Total Clients
+                        </div>
+                        <div style="font-size: 2rem; font-weight: 700; color: var(--primary-dark);">
+                            ${metrics.clients.totalClients}
+                        </div>
+                    </div>
+                    <div class="stat-card" style="padding: 20px; background: var(--gradient-soft); border-radius: 16px; border: 2px solid rgba(188, 148, 127, 0.2);">
+                        <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">
+                            <i class="fas fa-star"></i> New Clients
+                        </div>
+                        <div style="font-size: 2rem; font-weight: 700; color: var(--primary-dark);">
+                            ${metrics.clients.newClients}
+                        </div>
+                    </div>
+                    <div class="stat-card" style="padding: 20px; background: var(--gradient-soft); border-radius: 16px; border: 2px solid rgba(188, 148, 127, 0.2);">
+                        <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">
+                            <i class="fas fa-redo"></i> Returning Clients
+                        </div>
+                        <div style="font-size: 2rem; font-weight: 700; color: var(--primary-dark);">
+                            ${metrics.clients.returningClients}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Staff Performance -->
+            <div style="margin-bottom: 40px;">
+                <h4 style="font-family: 'Playfair Display'; font-size: 1.5rem; margin-bottom: 20px; color: var(--primary-dark);">
+                    <i class="fas fa-trophy"></i> Staff Performance
+                </h4>
+                <div style="background: white; padding: 20px; border-radius: 12px; border: 2px solid rgba(188, 148, 127, 0.2);">
+                    ${metrics.staff.map(item => `
+                        <div style="padding: 15px 0; border-bottom: 1px solid rgba(188, 148, 127, 0.1);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <span style="font-weight: 700; font-size: 1.1rem;">${item.name}</span>
+                                <span style="background: var(--gradient-primary); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600;">
+                                    ${item.appointments} appointments
+                                </span>
+                            </div>
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 10px;">
+                                <div>
+                                    <div style="font-size: 0.8rem; color: var(--text-muted);">Revenue</div>
+                                    <div style="font-weight: 700; color: var(--primary-dark);">$${item.revenue}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.8rem; color: var(--text-muted);">Hours Worked</div>
+                                    <div style="font-weight: 700; color: var(--primary-dark);">${item.hoursWorked}h</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.8rem; color: var(--text-muted);">Avg/Appointment</div>
+                                    <div style="font-weight: 700; color: var(--primary-dark);">$${item.avgPerAppt}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+
+            <!-- Service Popularity -->
+            <div>
+                <h4 style="font-family: 'Playfair Display'; font-size: 1.5rem; margin-bottom: 20px; color: var(--primary-dark);">
+                    <i class="fas fa-fire"></i> Service Popularity
+                </h4>
+                <div style="background: white; padding: 20px; border-radius: 12px; border: 2px solid rgba(188, 148, 127, 0.2);">
+                    ${metrics.services.map((item, index) => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid rgba(188, 148, 127, 0.1);">
+                            <div style="display: flex; align-items: center; gap: 15px;">
+                                <span style="font-weight: 700; font-size: 1.2rem; color: var(--primary-tan);">#${index + 1}</span>
+                                <span style="font-weight: 600;">${item.service}</span>
+                            </div>
+                            <span style="color: var(--primary-dark); font-weight: 700;">${item.count} bookings</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+
+            <button class="btn-primary" onclick="exportReport()" style="margin-top: 30px; max-width: 300px; margin-left: auto; margin-right: auto;">
+                <i class="fas fa-download"></i>
+                <span>Export Report</span>
+            </button>
         </div>
     `;
-    
-    document.body.appendChild(notificationEl);
-    
-    // Play sound for this notification
-    playNotificationSound('alert');
-    
-    // Update badge count
-    updateNotificationBadgeFromDOM();
 }
 
-function removeNotification(id) {
-    const notification = document.getElementById(id);
-    if (notification) {
-        notification.remove();
-        // Mark as read in Firebase if it has a key
-        const notificationKey = id.replace('notification-', '');
-        markNotificationAsRead(notificationKey);
+function getReportDateRange(reportType, selectedDate) {
+    const date = new Date(selectedDate + 'T00:00:00');
+    let startDate, endDate;
+
+    switch (reportType) {
+        case 'daily':
+            startDate = new Date(date);
+            endDate = new Date(date);
+            break;
+        case 'weekly':
+            // Get start of week (Monday)
+            const dayOfWeek = date.getDay();
+            const diffToMonday = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek;
+            startDate = new Date(date);
+            startDate.setDate(date.getDate() + diffToMonday);
+            endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + 6);
+            break;
+        case 'monthly':
+            startDate = new Date(date.getFullYear(), date.getMonth(), 1);
+            endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+            break;
+        case 'yearly':
+            startDate = new Date(date.getFullYear(), 0, 1);
+            endDate = new Date(date.getFullYear(), 11, 31);
+            break;
     }
-    // Update badge count when notification is closed
-    updateNotificationBadgeFromDOM();
+
+    return { startDate, endDate };
 }
 
-function updateNotificationBadgeFromDOM() {
-    const notifications = document.querySelectorAll('.persistent').length;
-    updateNotificationBadge(notifications);
-}
+function calculateReportMetrics(appointments) {
+    // Financial metrics
+    const totalRevenue = appointments.reduce((sum, appt) => sum + (appt.price || 0), 0);
+    const avgTransaction = appointments.length > 0 ? Math.round(totalRevenue / appointments.length) : 0;
 
-async function markNotificationAsRead(notificationKey) {
-    if (!notificationKey) return;
-    
-    const notificationRef = window.dbRef(window.db, `notifications/${notificationKey}`);
-    try {
-        await window.dbUpdate(notificationRef, { read: true });
-    } catch (error) {
-        console.error("Failed to mark notification as read:", error);
-    }
-}
-
-function startNotificationChecker() {
-    // Check for new notifications every 60 seconds (instead of 30)
-    setInterval(() => {
-        if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'specialist')) {
-            checkForNewNotificationsFromFirebase();
-        }
-    }, 60000); // 60 seconds
-    
-    // Also check immediately when page loads
-    if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'specialist')) {
-        setTimeout(checkForNewNotificationsFromFirebase, 2000);
-    }
-}
-
-function checkForNewNotificationsFromFirebase() {
-    const notificationsRef = window.dbRef(window.db, 'notifications');
-    window.dbGet(notificationsRef).then((snapshot) => {
-        if (snapshot.exists()) {
-            // Convert to array with keys
-            const data = snapshot.val();
-            const notifications = Object.keys(data).map(key => ({
-                ...data[key],
-                key: key
-            }));
-            checkForNewNotifications(notifications);
+    // Revenue by service
+    const serviceRevenue = {};
+    appointments.forEach(appt => {
+        if (Array.isArray(appt.services)) {
+            appt.services.forEach(service => {
+                if (!serviceRevenue[service]) {
+                    serviceRevenue[service] = { count: 0, revenue: 0 };
+                }
+                serviceRevenue[service].count++;
+                serviceRevenue[service].revenue += Math.round((appt.price || 0) / appt.services.length);
+            });
         }
     });
-}
 
-function checkForNewNotifications(notifications) {
-    if (!currentUser) return;
-    
-    // Filter for unread notifications for this user
-    const userNotifications = notifications.filter(notif => 
-        !notif.read && (
-            (notif.forAdmin && currentUser.role === 'admin') ||
-            (notif.forSpecialist === currentUser.name)
-        )
-    );
-    
-    // Show all unread notifications (not just the latest)
-    userNotifications.forEach(notification => {
-        showPersistentNotification(notification);
-    });
-    
-    // Update badge count
-    updateNotificationBadgeFromDOM();
-}
+    const revenueByService = Object.entries(serviceRevenue)
+        .map(([service, data]) => ({ service, ...data }))
+        .sort((a, b) => b.revenue - a.revenue);
 
-function updateNotificationBadge(count) {
-    // Update badge in admin/specialist view
-    const badge = document.getElementById('notification-badge');
-    if (badge) {
-        badge.textContent = count;
-        badge.classList.remove('hidden');
-    }
-    
-    // Or create a badge if it doesn't exist
-    if (count > 0 && !document.getElementById('notification-badge')) {
-        const bellIcon = document.querySelector('.fa-bell');
-        if (bellIcon && bellIcon.parentElement) {
-            const badge = document.createElement('span');
-            badge.id = 'notification-badge';
-            badge.className = 'notification-dot';
-            badge.textContent = count;
-            badge.style.cssText = `
-                position: absolute;
-                top: -5px;
-                right: -5px;
-                background: var(--danger);
-                color: white;
-                border-radius: 50%;
-                width: 20px;
-                height: 20px;
-                font-size: 0.7rem;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                border: 2px solid white;
-            `;
-            bellIcon.parentElement.style.position = 'relative';
-            bellIcon.parentElement.appendChild(badge);
+    // Revenue by staff
+    const staffRevenue = {};
+    appointments.forEach(appt => {
+        if (!staffRevenue[appt.tech]) {
+            staffRevenue[appt.tech] = { count: 0, revenue: 0 };
         }
+        staffRevenue[appt.tech].count++;
+        staffRevenue[appt.tech].revenue += appt.price || 0;
+    });
+
+    const revenueByStaff = Object.entries(staffRevenue)
+        .map(([staff, data]) => ({ staff, ...data }))
+        .sort((a, b) => b.revenue - a.revenue);
+
+    // Client metrics
+    const uniqueClients = new Set();
+    const clientAppointmentCounts = {};
+    
+    appointments.forEach(appt => {
+        const clientKey = appt.phone || appt.email;
+        uniqueClients.add(clientKey);
+        if (!clientAppointmentCounts[clientKey]) {
+            clientAppointmentCounts[clientKey] = 0;
+        }
+        clientAppointmentCounts[clientKey]++;
+    });
+
+    const newClients = Object.values(clientAppointmentCounts).filter(count => count === 1).length;
+    const returningClients = uniqueClients.size - newClients;
+
+    // Staff performance
+    const staffPerformance = Object.entries(staffRevenue).map(([name, data]) => {
+        const staffAppts = appointments.filter(a => a.tech === name);
+        const totalMinutes = staffAppts.reduce((sum, a) => sum + (a.duration || 0), 0);
+        const hoursWorked = Math.round(totalMinutes / 60 * 10) / 10;
+        const avgPerAppt = data.count > 0 ? Math.round(data.revenue / data.count) : 0;
+
+        return {
+            name,
+            appointments: data.count,
+            revenue: data.revenue,
+            hoursWorked,
+            avgPerAppt
+        };
+    }).sort((a, b) => b.revenue - a.revenue);
+
+    // Service popularity
+    const serviceCounts = {};
+    appointments.forEach(appt => {
+        if (Array.isArray(appt.services)) {
+            appt.services.forEach(service => {
+                serviceCounts[service] = (serviceCounts[service] || 0) + 1;
+            });
+        }
+    });
+
+    const servicePopularity = Object.entries(serviceCounts)
+        .map(([service, count]) => ({ service, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+
+    return {
+        financial: {
+            totalRevenue,
+            avgTransaction,
+            totalAppointments: appointments.length,
+            revenueByService,
+            revenueByStaff
+        },
+        clients: {
+            totalClients: uniqueClients.size,
+            newClients,
+            returningClients
+        },
+        staff: staffPerformance,
+        services: servicePopularity
+    };
+}
+
+function formatDateRange(startDate, endDate) {
+    const options = { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Beirut' };
+    const start = startDate.toLocaleDateString('en-US', options);
+    const end = endDate.toLocaleDateString('en-US', options);
+    
+    if (start === end) {
+        return start;
     }
+    return `${start} - ${end}`;
+}
+
+function exportReport() {
+    showNotification('Report export feature coming soon!', 'info');
 }
 
 // ==========================================
-// UTILITIES
+// SCHEDULE VIEWS
 // ==========================================
-function timeToMins(timeStr) {
-    const [h, m] = timeStr.split(':').map(Number);
-    return h * 60 + m;
-}
-
-function formatMinsToTime(mins) {
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    return `${h}:${m === 0 ? '00' : m < 10 ? '0' + m : m}`;
-}
-
-function updateClientDropdowns(selectedServiceId) {
-    if (!techSelect) return;
-    
-    // 1. Clear the current list
-    techSelect.innerHTML = '<option value="" disabled selected>Select your preferred specialist...</option>';
-    
-    // 2. Filter the technicians based on the selected service
-    const availableTechs = technicians.filter(t => {
-        // If no service is selected yet, maybe show none or all (your choice)
-        if (!selectedServiceId) return true; 
-        
-        // Check if the technician has the selected service ID in their skills array
-        return t.skills && t.skills.includes(selectedServiceId);
-    });
-
-    // 3. Only add the ones who have the skill
-    availableTechs.forEach(t => {
-        techSelect.innerHTML += `<option value="${t.name}">${t.name.charAt(0).toUpperCase() + t.name.slice(1)}</option>`;
-    });
-}
-
-function updateAdminFilterDropdowns() {
-    const adminTechSelect = document.getElementById('admin-tech-filter');
-    const adminServiceSelect = document.getElementById('admin-service-filter');
-
-    if (adminTechSelect) {
-        adminTechSelect.innerHTML = '<option value="all">All Specialists</option>';
-        technicians.forEach(t => {
-            adminTechSelect.innerHTML += `<option value="${t.name}">${t.name.charAt(0).toUpperCase() + t.name.slice(1)}</option>`;
-        });
-    }
-
-    if (adminServiceSelect) {
-        adminServiceSelect.innerHTML = '<option value="all">All Services</option>';
-        services.forEach(s => {
-            adminServiceSelect.innerHTML += `<option value="${s.name}">${s.name}</option>`;
-        });
-    }
-}
-
-function closeModal() {
-    confirmModal.classList.remove('active');
-    showView('client-profile-section');
-}
-
-function switchAdminTab(tabId) {
-    document.querySelectorAll('.admin-tab-content').forEach(content => {
-        content.classList.add('hidden');
-    });
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    document.getElementById(tabId).classList.remove('hidden');
-    event.currentTarget.classList.add('active');
-
-    if (tabId === 'tab-scheduler') renderAdminScheduler();
-    if (tabId === 'tab-inbox') renderAdminInbox();
-}
-
 function switchView(viewType) {
-    const dailyContainer = document.querySelector('.scheduler-container');
-    const weeklyContainer = document.getElementById('weekly-summary-container');
-
-    if (!dailyContainer || !weeklyContainer) return;
-
-    const btnDaily = document.getElementById('btn-daily');
-    const btnWeekly = document.getElementById('btn-weekly');
-
-    if (viewType === 'weekly') {
-        dailyContainer.classList.add('hidden');
-        weeklyContainer.classList.remove('hidden');
-        btnWeekly?.classList.add('active');
-        btnDaily?.classList.remove('active');
-        renderWeeklyCalendar();
-    } else {
-        weeklyContainer.classList.add('hidden');
-        dailyContainer.classList.remove('hidden');
-        btnDaily?.classList.add('active');
-        btnWeekly?.classList.remove('active');
+    if (viewType === 'daily') {
+        document.getElementById('daily-view').classList.remove('hidden');
+        document.getElementById('weekly-view').classList.add('hidden');
+        document.querySelectorAll('.btn-view-toggle').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.textContent.includes('Daily')) btn.classList.add('active');
+        });
         renderAdminScheduler();
+    } else if (viewType === 'weekly') {
+        document.getElementById('daily-view').classList.add('hidden');
+        document.getElementById('weekly-view').classList.remove('hidden');
+        document.querySelectorAll('.btn-view-toggle').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.textContent.includes('Weekly')) btn.classList.add('active');
+        });
+        renderWeeklyCalendar();
     }
 }
 
 function renderWeeklyCalendar() {
-    const container = document.getElementById('weekly-summary-container');
-    container.innerHTML = `
-        <div style="display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 30px;">
-            <button onclick="changeWeek(-1)" class="btn-view-toggle"><i class="fas fa-chevron-left"></i> Previous</button>
-            <h3 style="font-family: 'Playfair Display'; min-width: 200px; text-align: center;">Week Overview</h3>
-            <button onclick="changeWeek(1)" class="btn-view-toggle">Next <i class="fas fa-chevron-right"></i></button>
-        </div>
-        <div class="weekly-preview-grid"></div>
-    `;
+    const grid = document.getElementById('weekly-calendar');
+    if (!grid) return;
 
-    const grid = container.querySelector('.weekly-preview-grid');
     const today = new Date();
     today.setDate(today.getDate() + (weeklyViewOffset * 7));
 
+    const startOfWeek = new Date(today);
+    const day = startOfWeek.getDay();
+    const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
+    startOfWeek.setDate(diff);
+
+    grid.innerHTML = '';
+
     for (let i = 0; i < 7; i++) {
-        let d = new Date(today);
-        d.setDate(today.getDate() + i);
-        const dateStr = d.toISOString().split('T')[0];
-        const dayAppts = mockAppointments.filter(a => a.date === dateStr && a.status === 'confirmed');
+        const currentDate = new Date(startOfWeek);
+        currentDate.setDate(startOfWeek.getDate() + i);
+        const dateStr = currentDate.toISOString().split('T')[0];
+
+        const dayAppts = mockAppointments.filter(a =>
+            a.date === dateStr && a.status === 'confirmed'
+        );
 
         const card = document.createElement('div');
         card.className = 'day-preview-card';
-
-        let bgColor = dayAppts.length === 0 ? '#f5f5f5' :
-                      dayAppts.length <= 2 ? '#ebfbee' :
-                      dayAppts.length <= 5 ? '#fff4e6' : '#fff0f3';
-
-        card.style.background = bgColor;
-
         card.innerHTML = `
-            <h4 style="font-family: 'Playfair Display'; font-size:1.3rem; margin-bottom:12px;">
-                ${d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+            <h4 style="font-family: 'Playfair Display'; font-size: 1.2rem; margin-bottom: 10px; color: var(--primary-dark);">
+                ${currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
             </h4>
             ${dayAppts.length > 0 ? `
                 <div class="first-appt-badge">
@@ -1913,8 +2252,249 @@ function goToDate(dateStr) {
 }
 
 // ==========================================
-// NOTIFICATIONS (ORIGINAL FUNCTIONS)
+// LASER SERVICES CONTROL
 // ==========================================
+function updateLaserButton() {
+    const btn = document.getElementById('laser-toggle-btn');
+    if (!btn) return;
+
+    const selectedDate = document.getElementById('admin-date-filter')?.value;
+    if (!selectedDate) return;
+
+    const isEnabled = laserDates.includes(selectedDate);
+
+    if (isEnabled) {
+        btn.classList.add('active');
+        btn.innerHTML = '<i class="fas fa-check-circle"></i> <span>Laser Enabled</span>';
+    } else {
+        btn.classList.remove('active');
+        btn.innerHTML = '<i class="fas fa-plus-circle"></i> <span>Enable for Selected Date</span>';
+    }
+}
+
+async function toggleLaserForDate() {
+    const selectedDate = document.getElementById('admin-date-filter')?.value;
+    if (!selectedDate) {
+        showNotification('Please select a date first', 'warning');
+        return;
+    }
+
+    const isEnabled = laserDates.includes(selectedDate);
+    const laserRef = window.dbRef(window.db, 'laserDates');
+
+    try {
+        if (isEnabled) {
+            // Remove date
+            const snapshot = await window.dbGet(laserRef);
+            if (snapshot.exists()) {
+                const dates = snapshot.val();
+                const keyToRemove = Object.keys(dates).find(key => dates[key] === selectedDate);
+                if (keyToRemove) {
+                    await window.dbRemove(window.dbRef(window.db, `laserDates/${keyToRemove}`));
+                    showNotification('Laser services disabled for this date', 'info');
+                }
+            }
+        } else {
+            // Add date
+            await window.dbPush(laserRef).then(ref => window.dbSet(ref, selectedDate));
+            showNotification('Laser services enabled for this date', 'success');
+        }
+    } catch (error) {
+        console.error("Laser toggle error:", error);
+        showNotification('Failed to update laser availability', 'danger');
+    }
+}
+
+// ==========================================
+// APPOINTMENT ACTIONS
+// ==========================================
+async function confirmBooking(apptId) {
+    if (!confirm('Approve this booking request?')) return;
+
+    try {
+        const apptRef = window.dbRef(window.db, `appointments/${apptId}`);
+        await window.dbUpdate(apptRef, { status: 'confirmed' });
+        showNotification('Booking approved!', 'success');
+    } catch (error) {
+        console.error("Confirm booking error:", error);
+        showNotification('Failed to approve booking', 'danger');
+    }
+}
+
+async function deleteAppointment(apptId) {
+    if (!confirm('Cancel this appointment?')) return;
+
+    try {
+        const apptRef = window.dbRef(window.db, `appointments/${apptId}`);
+        await window.dbRemove(apptRef);
+        showNotification('Appointment cancelled', 'info');
+    } catch (error) {
+        console.error("Delete appointment error:", error);
+        showNotification('Failed to cancel appointment', 'danger');
+    }
+}
+
+// ==========================================
+// NOTIFICATIONS
+// ==========================================
+let notificationChecker = null;
+let lastNotificationCheck = Date.now();
+
+function startNotificationChecker() {
+    if (notificationChecker) clearInterval(notificationChecker);
+    
+    notificationChecker = setInterval(() => {
+        if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'specialist')) {
+            // Check will be handled by Firebase listener
+        }
+    }, 30000); // Check every 30 seconds
+}
+
+function checkForNewNotifications(notifications) {
+    notifications.forEach(notif => {
+        const notifTime = new Date(notif.timestamp).getTime();
+        
+        // REMOVE the check against lastNotificationCheck for the initial load
+        // Simply check if it's NOT READ
+        if (!notif.read) {
+            if (notif.type === 'new_booking' && (currentUser.role === 'admin' || currentUser.role === 'specialist')) {
+                playNotificationSound('notification');
+                showImmediateNotification('New Booking Request', notif.message, notif.key);
+                sendPushNotification('New Booking Request', notif.message);
+            }
+        }
+    });
+    
+    // Update the check time only AFTER processing
+    lastNotificationCheck = Date.now();
+}
+
+function sendBookingNotification(booking) {
+    const notificationData = {
+        type: 'new_booking',
+        message: `New booking from ${booking.name} for ${booking.services.join(', ')} on ${booking.date} at ${booking.time}`,
+        timestamp: new Date().toISOString(),
+        bookingId: booking.firebaseId || 'unknown'
+    };
+
+    const notifRef = window.dbRef(window.db, 'notifications');
+    window.dbPush(notifRef).then(ref => window.dbSet(ref, notificationData));
+}
+
+function showImmediateNotification(title, message, notificationId = null) {
+    // Check if this notification already exists on screen
+    const existingNotif = document.querySelector(`[data-notification-id=\"${notificationId}\"]`);
+    if (existingNotif) {
+        return; // Don't show duplicate
+    }
+
+    const notifEl = document.createElement('div');
+    notifEl.className = 'immediate-notification';
+    if (notificationId) {
+        notifEl.setAttribute('data-notification-id', notificationId);
+    }
+    
+    notifEl.innerHTML = `
+        <div class=\"notification-header\">
+            <i class=\"fas fa-bell\"></i>
+            <span>${title}</span>
+            <button class=\"close-notification\" onclick=\"dismissNotification(this, '${notificationId}')\">×</button>
+        </div>
+        <div class=\"notification-body\">
+            ${message}
+        </div>
+    `;
+    
+    // Add to a notification container or body
+    let notifContainer = document.getElementById('notification-container');
+    if (!notifContainer) {
+        notifContainer = document.createElement('div');
+        notifContainer.id = 'notification-container';
+        notifContainer.style.cssText = `
+            position: fixed;
+            top: 100px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 350px;
+        `;
+        document.body.appendChild(notifContainer);
+    }
+    
+    notifContainer.appendChild(notifEl);
+
+    // Persistent notification - stays until dismissed
+    // No auto-removal setTimeout
+}
+
+function dismissNotification(buttonElement, notificationId) {
+    const notifEl = buttonElement.closest('.immediate-notification');
+    notifEl.style.animation = 'slideOutRight 0.4s ease';
+    setTimeout(() => {
+        notifEl.remove();
+        // Optionally mark as read in Firebase
+        if (notificationId && notificationId !== 'null') {
+            markNotificationAsRead(notificationId);
+        }
+    }, 400);
+}
+
+function markNotificationAsRead(notificationId) {
+    try {
+        const notifRef = window.dbRef(window.db, `notifications/${notificationId}`);
+        window.dbUpdate(notifRef, { read: true, readAt: new Date().toISOString() });
+    } catch (error) {
+        console.error('Error marking notification as read:', error);
+    }
+}
+
+function playNotificationSound(type) {
+    // Browser notification sound (beep)
+    try{
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    oscillator.frequency.value = type === 'booking' ? 800 : 600;
+    oscillator.type = 'sine';
+
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.5);
+
+            // Play a second beep for emphasis
+        setTimeout(() => {
+            const oscillator2 = audioContext.createOscillator();
+            const gainNode2 = audioContext.createGain();
+            oscillator2.connect(gainNode2);
+            gainNode2.connect(audioContext.destination);
+            oscillator2.frequency.value = type === 'booking' ? 1000 : 800;
+            oscillator2.type = 'sine';
+            gainNode2.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+            oscillator2.start(audioContext.currentTime);
+            oscillator2.stop(audioContext.currentTime + 0.5);
+        }, 200);
+        
+    } catch (error) {
+        console.log('Audio playback failed:', error);
+        // Fallback: Try HTML5 Audio with data URI
+        try {
+            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuByO7aizsKGWS67OihUBELTKXh8bllHgU2jdXxy3oqBSh+zPLZjjoIDFiv6OyrWBUIQ5zd8sFuJAYug8jv3Y0+CRdmsOvnolITC0mh4PG2ZSAGNo/X8sl8KgYpf87y2Ys8Cg5Zr+vqqlcVCkOc3fO/bSMGLoPI796PPgkXZ6/r56JTE');
+            audio.play();
+        } catch (e) {
+            console.log('Fallback audio also failed:', e);
+        }
+    }
+}
+
 function requestNotificationPermission() {
     if ("Notification" in window && Notification.permission !== "denied") {
         Notification.requestPermission().then(permission => {
@@ -1970,12 +2550,26 @@ function showNotification(message, type = 'info') {
 }
 
 // ==========================================
+// UTILITY FUNCTIONS
+// ==========================================
+function timeToMins(timeStr) {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
+}
+
+function formatMinsToTime(mins) {
+    const hours = Math.floor(mins / 60);
+    const minutes = mins % 60;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+// ==========================================
 // INITIALIZATION
 // ==========================================
 datePicker?.addEventListener('change', () => {
     if (datePicker.value) {
         detailsForm.classList.remove('hidden');
-        renderServiceCheckboxes(); // Re-render to check laser availability
+        renderServiceCheckboxes();
         updateBookingTotal();
     }
 });
@@ -1991,6 +2585,14 @@ document.getElementById('admin-date-filter')?.addEventListener('change', () => {
 document.getElementById('admin-tech-filter')?.addEventListener('change', renderAdminScheduler);
 document.getElementById('admin-service-filter')?.addEventListener('change', renderAdminScheduler);
 
+// Handle service changes for admin booking
+document.getElementById('admin-booking-tech')?.addEventListener('change', () => {
+    updateAdminBookingTotal();
+});
+document.getElementById('admin-booking-date')?.addEventListener('change', () => {
+    updateAdminBookingTotal();
+});
+
 // Set min date for date pickers to today
 const today = new Date().toISOString().split('T')[0];
 if (datePicker) {
@@ -2000,16 +2602,16 @@ if (datePicker) {
 if (document.getElementById('admin-date-filter')) {
     document.getElementById('admin-date-filter').value = today;
 }
+if (document.getElementById('report-date-filter')) {
+    document.getElementById('report-date-filter').value = today;
+}
 
 window.onload = () => {
-    // Always show login page first
     showView('auth-section');
     document.getElementById('nav-links').classList.add('hidden');
-    
-    // Check auth state using Firebase Auth
+
     window.onAuthStateChanged(window.auth, (user) => {
         if (user) {
-            // User is signed in - get their data from Firebase
             const userRef = window.dbRef(window.db, `users/${user.uid}`);
             window.dbGet(userRef).then((snapshot) => {
                 if (snapshot.exists()) {
@@ -2021,13 +2623,11 @@ window.onload = () => {
                         phone: userData.phone,
                         role: userData.role
                     };
-                    
+
                     localStorage.setItem('plume_user', JSON.stringify(currentUser));
-                    
-                    // Show navigation
+
                     document.getElementById('nav-links').classList.remove('hidden');
-                    
-                    // Show appropriate view based on role
+
                     if (currentUser.role === 'admin') {
                         showView('admin-section');
                         startFirebaseSync();
@@ -2041,32 +2641,28 @@ window.onload = () => {
                     } else if (currentUser.role === 'client') {
                         showView('booking-section');
                         startFirebaseSync();
-                        startNotificationChecker(); // Clients also check for their own notifications
+                        startNotificationChecker();
                     } else {
-                        // Unknown role - logout
                         console.error("Unknown user role:", currentUser.role);
                         window.signOut(window.auth);
                     }
                 } else {
-                    // User data not found in database - logout
                     console.error("User data not found in database");
                     showNotification('Account data not found. Please contact support.', 'danger');
-                    
+                    window.signOut(window.auth);
                 }
             }).catch(error => {
                 console.error("Error fetching user data:", error);
                 showNotification('Error loading account data', 'danger');
                 window.signOut(window.auth);
             });
-            
+
         } else {
-            // No user signed in - show login page
             currentUser = null;
             localStorage.removeItem('plume_user');
             document.getElementById('nav-links').classList.add('hidden');
             showView('auth-section');
-            
-            // Reset auth form to login mode
+
             isLoggingIn = true;
             if (document.getElementById('signup-extra')) {
                 document.getElementById('signup-extra').classList.add('hidden');
@@ -2080,219 +2676,4 @@ window.onload = () => {
         }
     });
 };
-
-// Add animation CSS
-const style = document.createElement('style');
-style.textContent = `
-@keyframes slideInRight {
-    from { transform: translateX(400px); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-}
-@keyframes slideOutRight {
-    from { transform: translateX(0); opacity: 1; }
-    to { transform: translateX(400px); opacity: 0; }
-}
-@keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-@keyframes fadeOut {
-    from { opacity: 1; }
-    to { opacity: 0; }
-}
-@keyframes slideInNotification {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-}
-.badge {
-    background: var(--danger);
-    color: white;
-    border-radius: 50%;
-    padding: 2px 8px;
-    font-size: 0.7rem;
-    margin-left: 8px;
-    font-weight: 700;
-}
-.badge-confirm {
-    background: var(--warning);
-    color: white;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 0.7rem;
-    margin-left: 8px;
-    font-weight: 600;
-}
-.btn-skills {
-    background: var(--primary-tan);
-    color: white;
-    border: none;
-    padding: 6px 12px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 600;
-    transition: all 0.3s;
-}
-.btn-skills:hover {
-    background: var(--primary-dark);
-    transform: scale(1.05);
-}
-.laser-panel {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px;
-    background: rgba(255, 193, 7, 0.1);
-    border: 2px solid rgba(255, 193, 7, 0.3);
-    border-radius: 14px;
-    margin: 20px 0;
-}
-.laser-info {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-weight: 600;
-    color: var(--text-dark);
-}
-.laser-info i {
-    color: #ff9800;
-    font-size: 1.3rem;
-}
-.btn-laser {
-    background: #ff9800;
-    color: white;
-    border: none;
-    padding: 12px 24px;
-    border-radius: 25px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.3s;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    font-size: 0.85rem;
-}
-.btn-laser:hover {
-    background: #f57c00;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(255, 152, 0, 0.4);
-}
-.btn-laser.active {
-    background: var(--success);
-}
-.btn-laser.active:hover {
-    background: #5da876;
-}
-.weekly-preview-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
-    margin-top: 20px;
-}
-.day-preview-card {
-    padding: 25px;
-    border-radius: 18px;
-    box-shadow: 0 4px 16px var(--shadow-soft);
-    transition: all 0.3s;
-    border: 2px solid rgba(188, 148, 127, 0.2);
-}
-.day-preview-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 24px var(--shadow-medium);
-}
-.first-appt-badge {
-    background: var(--gradient-soft);
-    padding: 10px;
-    border-radius: 10px;
-    margin: 12px 0;
-    font-weight: 600;
-    color: var(--primary-dark);
-    border: 2px solid rgba(188, 148, 127, 0.2);
-}
-.preview-list {
-    margin: 15px 0;
-}
-.preview-item {
-    padding: 8px;
-    color: var(--text-dark);
-    font-size: 0.9rem;
-}
-.specialist-day-header {
-    text-align: center;
-    margin-bottom: 30px;
-    padding-bottom: 20px;
-    border-bottom: 2px solid rgba(188, 148, 127, 0.2);
-}
-.specialist-stats {
-    display: flex;
-    justify-content: center;
-    gap: 15px;
-    margin-top: 15px;
-}
-.stat-badge {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 20px;
-    background: var(--gradient-soft);
-    border-radius: 20px;
-    border: 2px solid rgba(188, 148, 127, 0.2);
-    font-weight: 600;
-    color: var(--primary-dark);
-}
-.specialist-filters {
-    margin-bottom: 25px;
-}
-.calendar-container {
-    margin-top: 20px;
-}
-/* Immediate Notification Styling */
-.immediate-notification {
-    position: fixed;
-    top: 100px;
-    right: 20px;
-    background: white;
-    border-left: 5px solid var(--primary-tan);
-    border-radius: 10px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.15);
-    z-index: 9999;
-    max-width: 350px;
-    animation: slideInNotification 0.5s ease;
-    overflow: hidden;
-}
-.notification-header {
-    background: var(--gradient-soft);
-    padding: 12px 15px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: var(--primary-dark);
-    font-weight: 600;
-}
-.notification-header i {
-    color: var(--primary-tan);
-}
-.close-notification {
-    margin-left: auto;
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    cursor: pointer;
-    color: var(--text-muted);
-    padding: 0;
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-}
-.close-notification:hover {
-    background: rgba(0,0,0,0.1);
-}
-.notification-body {
-    padding: 15px;
-    color: var(--text-dark);
-    line-height: 1.5;
-}
-`;
-document.head.appendChild(style);
 
