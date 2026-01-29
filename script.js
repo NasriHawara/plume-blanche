@@ -335,7 +335,11 @@ function renderServiceCheckboxes() {
 
     const categories = {};
     services.forEach(service => {
-        const isLaserService = service.category && service.category.toLowerCase() === 'laser';
+                const isLaserService = service.category && (
+            service.category.toLowerCase().includes('laser') || 
+            service.category.toLowerCase() === 'laser men' || 
+            service.category.toLowerCase() === 'laser women'
+        );
 
         // FIX: Hide laser services if not enabled for the date (unless admin)
         if (isLaserService && !isLaserEnabled && currentUser && currentUser.role !== 'admin') {
@@ -344,7 +348,7 @@ function renderServiceCheckboxes() {
 
         let catName = service.category || "General Services";
         if (isLaserService) {
-            catName = "Laser";
+           catName = service.category; 
         }
 
         if (!categories[catName]) categories[catName] = [];
@@ -2676,4 +2680,5 @@ window.onload = () => {
         }
     });
 };
+
 
