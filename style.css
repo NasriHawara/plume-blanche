@@ -1047,10 +1047,13 @@ input::placeholder {
 /* SCHEDULER GRID */
 .scheduler-container {
     overflow-x: auto;
+    overflow-y:visible;
     background: var(--white);
     border-radius: 18px;
     padding: 20px;
     box-shadow: 0 4px 16px var(--shadow-soft);
+        width: 100%;
+    max-width: 100%;
 }
 
 .scheduler-grid {
@@ -3073,3 +3076,4 @@ input:focus, select:focus {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+
