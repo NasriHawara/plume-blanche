@@ -4,109 +4,108 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Plume Blanche | Luxury Beauty Lounge</title>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Cormorant+Garamond:wght@300;400;500;600&family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <!-- Animated Background Overlay -->
     <div class="bg-overlay"></div>
 
     <header>
-        <div class="logo-container" data-aos="fade-down">
+        <div class="logo-container">
             <img src="https://customer-assets.emergentagent.com/job_hair-hub-12/artifacts/cprm0suq_0c1377bd-f4df-4c9c-922d-9f2e9eca59a7.jfif" alt="Plume Blanche Logo" class="logo-image">
         </div>
         <nav id="nav-links" class="hidden">
-            <button onclick="showView('booking-section')" class="btn-nav" data-testid="nav-new-booking">
+            <button class="btn-nav" onclick="showView('booking-section')">
                 <i class="fas fa-calendar-plus"></i>
-                <span>New Booking</span>
+                <span>Book Now</span>
             </button>
-            <button onclick="showView('client-profile-section')" class="btn-nav" data-testid="nav-my-profile">
+            <button class="btn-nav" onclick="showView('client-profile-section')">
                 <i class="fas fa-user-circle"></i>
                 <span>My Profile</span>
             </button>
-            <button id="logoutBtn" class="btn-logout" data-testid="logout-button">
+            <button class="btn-logout" id="logoutBtn">
                 <i class="fas fa-sign-out-alt"></i>
                 <span>Logout</span>
             </button>
         </nav>
     </header>
 
-    <main id="app-container">
-        
+    <div id="app-container">
+
         <!-- AUTH SECTION -->
-        <section id="auth-section" class="view">
-            <div class="card auth-card" data-aos="fade-up">
+        <div id="auth-section" class="view">
+            <div class="card auth-card">
                 <div class="card-icon">
-                    <i class="fas fa-spa"></i>
+                    <i class="fas fa-crown"></i>
                 </div>
-                <h2 id="auth-title" class="section-title">Welcome Back</h2>
-                <p class="subtitle">Sign in to manage your beauty journey</p>
-                
+                <div class="card-header">
+                    <h2 class="section-title" id="auth-title">Welcome Back</h2>
+                    <p class="subtitle">Sign in to manage your beauty journey</p>
+                </div>
+
                 <div class="input-group">
                     <i class="fas fa-envelope"></i>
-                    <input type="email" id="email" placeholder="Email Address" data-testid="email-input">
+                    <input type="email" id="email" placeholder="Email Address">
                 </div>
-                
+
                 <div class="input-group">
                     <i class="fas fa-lock"></i>
-                    <input type="password" id="password" placeholder="Password" data-testid="password-input">
+                    <input type="password" id="password" placeholder="Password">
                 </div>
 
                 <div id="signup-extra" class="hidden">
-                    <p class="form-label">PROFILE DETAILS</p>
                     <div class="input-group">
                         <i class="fas fa-user"></i>
-                        <input type="text" id="fullname" placeholder="Full Name" data-testid="fullname-input">
+                        <input type="text" id="fullname" placeholder="Full Name">
                     </div>
                     <div class="input-group">
                         <i class="fas fa-phone"></i>
-                        <input type="tel" id="phone" placeholder="Phone Number" data-testid="phone-input">
+                        <input type="tel" id="phone" placeholder="Phone Number">
                     </div>
                 </div>
-                
-                <button id="auth-action-btn" class="btn-primary" data-testid="auth-submit-button">
+
+                <button class="btn-primary btn-large" id="auth-action-btn">
                     <span>Login</span>
                     <i class="fas fa-arrow-right"></i>
                 </button>
-                
-                <p id="toggle-text" class="toggle-link" data-testid="toggle-auth-mode">
-                    Don't have an account? <span>Sign Up</span>
+
+                <p class="toggle-link">
+                    Don't have an account? <span id="toggle-text">Sign Up</span>
                 </p>
             </div>
-        </section>
+        </div>
 
         <!-- CLIENT PROFILE SECTION -->
-        <section id="client-profile-section" class="view hidden">
-            <div class="card" data-aos="fade-up">
+        <div id="client-profile-section" class="view hidden">
+            <div class="card">
                 <div class="card-header">
-                    <div class="card-icon">
-                        <i class="fas fa-calendar-check"></i>
-                    </div>
-                    <h2 class="section-title">My Appointments</h2>
+                    <h2 class="section-title">
+                        <i class="fas fa-user-circle"></i>
+                        My Appointments
+                    </h2>
                     <p class="subtitle">Track your beauty sessions</p>
                 </div>
-                
+
                 <div class="profile-stats">
                     <div class="stat-card">
-                        <i class="fas fa-crown"></i>
-                        <span id="client-role-badge">Gold Member</span>
+                        <i class="fas fa-gem"></i>
+                        <span>Gold Member</span>
                     </div>
                 </div>
 
                 <div class="booking-filter-tabs">
-                    <button class="tab active" onclick="filterClientBookings('upcoming')" data-testid="tab-upcoming">
+                    <div class="tab active" onclick="filterClientBookings('upcoming')">
+                        <i class="fas fa-calendar-check"></i>
+                        <span>Upcoming</span>
+                    </div>
+                    <div class="tab" onclick="filterClientBookings('pending')">
                         <i class="fas fa-clock"></i>
-                        Upcoming
-                    </button>
-                    <button class="tab" onclick="filterClientBookings('pending')" data-testid="tab-pending">
-                        <i class="fas fa-hourglass-half"></i>
-                        Pending
-                    </button>
-                    <button class="tab" onclick="filterClientBookings('past')" data-testid="tab-history">
+                        <span>Pending</span>
+                    </div>
+                    <div class="tab" onclick="filterClientBookings('past')">
                         <i class="fas fa-history"></i>
-                        History
-                    </button>
+                        <span>History</span>
+                    </div>
                 </div>
 
                 <div id="client-bookings-list" class="list-container">
@@ -116,276 +115,531 @@
                     </div>
                 </div>
             </div>
-        </section>
-
-        <!-- SPECIALIST SCHEDULE SECTION -->
-        <section id="specialist-section" class="view hidden">
-            <div class="card" data-aos="fade-up">
-                <div class="card-header">
-                    <div class="card-icon">
-                        <i class="fas fa-calendar-week"></i>
-                    </div>
-                    <h2 class="section-title">My Schedule</h2>
-                    <p class="subtitle">View your upcoming appointments</p>
-                </div>
-
-                <div class="specialist-filters">
-                    <div class="filter-group">
-                        <i class="fas fa-calendar"></i>
-                        <input type="date" id="specialist-date-filter" class="filter-input" data-testid="specialist-date-filter">
-                    </div>
-                </div>
-
-                <div id="specialist-calendar-container" class="calendar-container">
-                    <!-- Calendar will be rendered here -->
-                </div>
-            </div>
-        </section>
+        </div>
 
         <!-- BOOKING SECTION -->
-        <section id="booking-section" class="view hidden">
-            <div class="card" data-aos="fade-up">
+        <div id="booking-section" class="view hidden">
+            <div class="card">
                 <div class="card-header">
-                    <div class="card-icon">
-                        <i class="fas fa-magic"></i>
-                    </div>
-                    <h3 class="section-title">Book Your Experience</h3>
+                    <h2 class="section-title">
+                        <i class="fas fa-sparkles"></i>
+                        Book Your Experience
+                    </h2>
                     <p class="subtitle">Select your preferred date and services</p>
                 </div>
 
                 <div class="booking-step">
                     <div class="step-number">1</div>
-                    <label class="step-label">Choose Your Date</label>
+                    <h3 class="step-label">Choose Your Date</h3>
                 </div>
+
                 <div class="input-group calendar-group">
                     <i class="fas fa-calendar-alt"></i>
-                    <input type="date" id="date-picker" class="custom-calendar" data-testid="date-picker">
+                    <input type="date" id="date-picker">
                 </div>
-                
+
+                <button class="btn-primary" onclick="detailsForm.classList.remove('hidden'); renderServiceCheckboxes();">
+                    <span>Continue Booking</span>
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+
                 <div id="details-form" class="hidden">
                     <div class="divider">
-                        <span>Continue Booking</span>
+                        <span>2</span>
                     </div>
-                    
+
                     <div class="booking-step">
                         <div class="step-number">2</div>
-                        <label class="step-label">Select Your Services</label>
+                        <h3 class="step-label">Select Your Services</h3>
                     </div>
-                    <div id="service-checkbox-list" class="checkbox-group">
+
+                    <div id="service-checkbox-list" class="checkbox-group"></div>
+
+                    <div class="divider">
+                        <span>3</span>
                     </div>
 
                     <div class="booking-step">
                         <div class="step-number">3</div>
-                        <label class="step-label">Choose Your Specialist</label>
+                        <h3 class="step-label">Choose Your Specialist</h3>
                     </div>
+
                     <div class="input-group">
                         <i class="fas fa-user-tie"></i>
-                        <select id="tech-select" data-testid="technician-select">
+                        <select id="tech-select">
                             <option value="" disabled selected>Select your preferred specialist...</option>
                         </select>
                     </div>
 
+                    <div class="divider">
+                        <span>4</span>
+                    </div>
+
                     <div class="booking-step">
                         <div class="step-number">4</div>
-                        <label class="step-label">Pick Your Time Slot</label>
+                        <h3 class="step-label">Pick Your Time Slot</h3>
                     </div>
-                    <div id="time-slots" class="time-grid"></div>
 
                     <div id="booking-summary" class="summary-box hidden">
-                        <div class="summary-header">
-                            <i class="fas fa-file-invoice"></i>
-                            <h4>Booking Summary</h4>
-                        </div>
+                        <h4>
+                            <i class="fas fa-clipboard-list"></i>
+                            Booking Summary
+                        </h4>
                         <div class="summary-row">
                             <span>Total Duration:</span>
-                            <strong><span id="sum-duration">0</span> minutes</strong>
+                            <strong id="sum-duration">0</strong> <span>minutes</span>
                         </div>
-                        <div class="summary-row">
+                        <div class="summary-row total">
                             <span>Total Price:</span>
-                            <strong class="price-highlight">$<span id="sum-price">0</span></strong>
+                            <strong>$<span id="sum-price">0</span></strong>
                         </div>
-                        <p id="split-notice" class="notice hidden">
-                            <i class="fas fa-info-circle"></i>
+                        <p style="margin-top: 15px; font-size: 0.85rem; color: var(--text-muted); font-style: italic;">
                             This session involves multiple specialists
                         </p>
                     </div>
 
-                    <button id="book-now-btn" class="btn-primary btn-large hidden" data-testid="confirm-booking-button">
+                    <div id="time-slots" class="time-grid"></div>
+
+                    <button class="btn-primary hidden" id="book-now-btn">
                         <span>Confirm Booking</span>
                         <i class="fas fa-check-circle"></i>
                     </button>
                 </div>
             </div>
-        </section>
+        </div>
 
         <!-- ADMIN SECTION -->
-      <section id="admin-section" class="view hidden">
-    <div class="admin-header" data-aos="fade-down">
-        <h2 class="page-title">
-            <i class="fas fa-chart-line"></i>
-            Admin Dashboard
-        </h2>
-    </div>
+        <div id="admin-section" class="view hidden">
+            <div class="card admin-card">
+                <h1 class="page-title">
+                    <i class="fas fa-crown"></i>
+                    Admin Dashboard
+                </h1>
 
-    <div class="admin-tabs">
-        <button class="tab-btn active" onclick="switchAdminTab('tab-scheduler')" data-testid="admin-tab-schedule">
-            <i class="fas fa-calendar-week"></i>
-            <span>Schedule</span>
-        </button>
-        <button class="tab-btn" onclick="switchAdminTab('tab-inbox')" data-testid="admin-tab-requests">
-            <i class="fas fa-inbox"></i>
-            <span>Requests</span>
-            <span id="pending-count-badge" class="badge hidden">0</span>
-        </button>
-        <button class="tab-btn" onclick="switchAdminTab('tab-management')" data-testid="admin-tab-settings">
-            <i class="fas fa-cog"></i>
-            <span>Settings</span>
-        </button>
-    </div>
-
-    <div id="tab-scheduler" class="admin-tab-content">
-        <div class="card admin-card">
-            <div class="card-subheader">
-                <h3>Daily Schedule</h3>
-                <p>Manage appointments and availability</p>
-            </div>
-
-            <div class="admin-filters">
-                <div class="filter-group">
-                    <i class="fas fa-calendar"></i>
-                    <input type="date" id="admin-date-filter" class="filter-input" data-testid="admin-date-filter">
-                </div>
-                <div class="filter-group">
-                    <i class="fas fa-user"></i>
-                    <select id="admin-tech-filter" class="filter-input" data-testid="admin-tech-filter"></select>
-                </div>
-                <div class="filter-group">
-                    <i class="fas fa-cut"></i>
-                    <select id="admin-service-filter" class="filter-input" data-testid="admin-service-filter"></select>
-                </div>
-            </div>
-
-            <div id="laser-control-panel" class="laser-panel">
-                <div class="laser-info">
-                    <i class="fas fa-bolt"></i>
-                    <span>Laser Services Control</span>
-                </div>
-                <button id="toggle-laser-btn" class="btn-laser" onclick="toggleLaserForDate()">
-                    <span id="laser-status-text">Enable for Selected Date</span>
-                </button>
-            </div>
-
-            <div class="view-controls">
-                <button id="btn-daily" class="btn-view-toggle active" onclick="switchView('daily')" data-testid="view-daily">
-                    <i class="fas fa-th"></i>
-                    Daily View
-                </button>
-                <button id="btn-weekly" class="btn-view-toggle" onclick="switchView('weekly')" data-testid="view-weekly">
-                    <i class="fas fa-calendar"></i>
-                    Weekly View
-                </button>
-            </div>
-
-            <div class="scheduler-container">
-                <div id="scheduler-grid" class="scheduler-grid"></div>
-            </div>
-
-            <div id="weekly-summary-container" class="hidden">
-            </div>
-        </div>
-    </div>
-
-    <div id="tab-inbox" class="admin-tab-content hidden">
-        <div id="admin-inbox"></div>
-    </div>
-
-    <div id="tab-management" class="admin-tab-content hidden">
-        <div class="admin-management-panel">
-            <div class="mgmt-grid">
-                <div class="mgmt-card card">
-                    <div class="mgmt-header">
+                <div class="admin-tabs">
+                    <button class="tab-btn active" onclick="switchAdminTab('schedule')">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>Schedule</span>
+                    </button>
+                    <button class="tab-btn" onclick="switchAdminTab('requests')">
+                        <i class="fas fa-bell"></i>
+                        <span>Requests</span>
+                        <span id="pending-count-badge" class="badge hidden">0</span>
+                    </button>
+                    <button class="tab-btn" onclick="switchAdminTab('staff')">
                         <i class="fas fa-users"></i>
-                        <h3>Team Members</h3>
-                        <small style="color: var(--text-muted); margin-left: auto; font-size: 0.85rem;">
-                            Admin-only: Creates secure user accounts
-                        </small>
+                        <span>Staff</span>
+                    </button>
+                    <button class="tab-btn" onclick="switchAdminTab('services')">
+                        <i class="fas fa-concierge-bell"></i>
+                        <span>Services</span>
+                    </button>
+                    <button class="tab-btn" onclick="switchAdminTab('history')">
+                        <i class="fas fa-user-clock"></i>
+                        <span>Client History</span>
+                    </button>
+                    <button class="tab-btn" onclick="switchAdminTab('reminders')">
+                        <i class="fas fa-comments"></i>
+                        <span>Reminders</span>
+                    </button>
+                    <button class="tab-btn" onclick="switchAdminTab('reports')">
+                        <i class="fas fa-chart-bar"></i>
+                        <span>Reports</span>
+                    </button>
+                </div>
+
+                <!-- SCHEDULE TAB -->
+                <div id="admin-tab-schedule" class="admin-tab-content">
+                    <div class="card-subheader">
+                        <h3>
+                            <i class="fas fa-calendar-week"></i>
+                            Daily Schedule
+                        </h3>
+                        <p>Manage appointments and availability</p>
                     </div>
-                    <div id="staff-list-container"></div>
-                    <div class="add-row" style="flex-wrap: wrap; gap: 10px;">
-                        <input type="text" id="new-staff-name" placeholder="Full Name" data-testid="new-staff-input" style="flex: 1; min-width: 150px;">
-                        <input type="email" id="new-staff-email" placeholder="Email Address" style="flex: 1; min-width: 180px;">
-                        <input type="tel" id="new-staff-phone" placeholder="Phone" style="flex: 1; min-width: 120px;">
-                        <select id="new-staff-role" style="width: 120px;">
-                            <option value="specialist">Specialist</option>
-                            <option value="admin">Admin</option>
-                        </select>
-                        <button onclick="addStaff()" class="btn-add" data-testid="add-staff-button" style="padding: 10px 20px;">
-                            <i class="fas fa-plus"></i> Add Staff
+
+                    <div class="admin-filters">
+                        <div class="filter-group">
+                            <label class="filter-label">DATE</label>
+                            <i class="fas fa-calendar-alt"></i>
+                            <input type="date" id="admin-date-filter" class="filter-input">
+                        </div>
+                        <div class="filter-group">
+                            <label class="filter-label">SPECIALIST</label>
+                            <i class="fas fa-user-tie"></i>
+                            <select id="admin-tech-filter" class="filter-input">
+                                <option value="all">All Specialists</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label class="filter-label">CATEGORY</label>
+                            <i class="fas fa-tags"></i>
+                            <select id="admin-service-filter" class="filter-input">
+                                <option value="all">All Categories</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="laser-panel">
+                        <div class="laser-info">
+                            <i class="fas fa-bolt"></i>
+                            <span>Laser Services Control</span>
+                        </div>
+                        <button class="btn-laser" id="laser-toggle-btn" onclick="toggleLaserForDate()">
+                            Enable for Selected Date
                         </button>
                     </div>
-                    <div style="margin-top: 10px; padding: 10px; background: var(--light-bg); border-radius: 8px;">
-                        <small style="color: var(--text-muted); display: block; text-align: center;">
-                            <i class="fas fa-info-circle"></i> 
-                            System will generate a secure password and link user account automatically
-                        </small>
+
+                    <div class="view-controls">
+                        <button class="btn-view-toggle active" onclick="switchView('daily')">
+                            <i class="fas fa-calendar-day"></i>
+                            <span>Daily View</span>
+                        </button>
+                        <button class="btn-view-toggle" onclick="switchView('weekly')">
+                            <i class="fas fa-calendar-week"></i>
+                            <span>Weekly View</span>
+                        </button>
+                    </div>
+
+                    <div id="daily-view" class="scheduler-container">
+                        <div id="scheduler-grid" class="scheduler-grid"></div>
+                    </div>
+
+                    <div id="weekly-view" class="hidden">
+                        <div style="display: flex; justify-content: center; gap: 15px; margin-bottom: 20px;">
+                            <button class="btn-primary" style="width: auto; padding: 12px 24px;" onclick="changeWeek(-1)">
+                                <i class="fas fa-chevron-left"></i>
+                                <span>Previous Week</span>
+                            </button>
+                            <button class="btn-primary" style="width: auto; padding: 12px 24px;" onclick="changeWeek(1)">
+                                <span>Next Week</span>
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                        <div id="weekly-calendar" class="weekly-preview-grid"></div>
                     </div>
                 </div>
-                <div class="mgmt-card card">
-                    <div class="mgmt-header">
-                        <i class="fas fa-list-ul"></i>
-                        <h3>Service Menu</h3>
+
+                <!-- REQUESTS TAB -->
+                <div id="admin-tab-requests" class="admin-tab-content hidden">
+                    <div id="admin-inbox"></div>
+                </div>
+
+                <!-- STAFF TAB -->
+                <div id="admin-tab-staff" class="admin-tab-content hidden">
+                    <div class="card-subheader">
+                        <h3>
+                            <i class="fas fa-users-cog"></i>
+                            Staff Management
+                        </h3>
+                        <p>Manage team members and their skills</p>
                     </div>
-                    <div id="service-list-container"></div>
-                    <div class="add-row" style="flex-wrap: wrap; gap: 10px;">
-                        <input type="text" id="new-service-name" placeholder="Service name" data-testid="new-service-name" style="flex: 1; min-width: 150px;">
-                        <input type="number" id="new-service-dur" placeholder="Duration (min)" data-testid="new-service-duration" style="width: 120px;">
-                        <input type="number" id="new-service-price" placeholder="Price ($)" data-testid="new-service-price" style="width: 120px;">
-                        <input type="text" id="new-service-category" placeholder="Category" style="width: 120px;">
-                        <label style="display:flex; align-items:center; gap:8px; white-space:nowrap;">
-                            <input type="checkbox" id="new-service-confirm" style="width:auto;">
-                            <span style="font-size:0.8rem;">Needs Approval</span>
-                        </label>
-                        <button onclick="addService()" class="btn-add" data-testid="add-service-button" style="padding: 10px 20px;">
-                            <i class="fas fa-plus"></i> Add Service
-                        </button>
+
+                    <div class="management-two-column">
+                        <div class="mgmt-column">
+                            <div class="mgmt-card">
+                                <div class="mgmt-header">
+                                    <i class="fas fa-user-plus"></i>
+                                    <h3>Add New Staff</h3>
+                                </div>
+                                <div class="input-group">
+                                    <i class="fas fa-user"></i>
+                                    <input type="text" id="new-staff-name" placeholder="Full Name">
+                                </div>
+                                <div class="input-group">
+                                    <i class="fas fa-envelope"></i>
+                                    <input type="email" id="new-staff-email" placeholder="Email">
+                                </div>
+                                <div class="input-group">
+                                    <i class="fas fa-phone"></i>
+                                    <input type="tel" id="new-staff-phone" placeholder="Phone">
+                                </div>
+                                <div class="input-group">
+                                    <i class="fas fa-lock"></i>
+                                    <input type="password" id="new-staff-password" placeholder="Password">
+                                </div>
+                                <div class="input-group">
+                                    <i class="fas fa-user-tag"></i>
+                                    <select id="new-staff-role">
+                                        <option value="specialist">Specialist</option>
+                                        <option value="admin">Admin</option>
+                                    </select>
+                                </div>
+                                <button class="btn-primary" onclick="addStaff()">
+                                    <span>Add Staff Member</span>
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                                <p style="margin-top: 15px; font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+                                    <i class="fas fa-info-circle"></i>
+                                    System will generate a secure password and link user account automatically
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="mgmt-column">
+                            <div class="mgmt-card">
+                                <div class="mgmt-header">
+                                    <i class="fas fa-users"></i>
+                                    <h3>Staff Members</h3>
+                                </div>
+                                <div id="staff-list-container"></div>
+                            </div>
+                        </div>
                     </div>
+                </div>
+
+                <!-- SERVICES TAB -->
+                <div id="admin-tab-services" class="admin-tab-content hidden">
+                    <div class="card-subheader">
+                        <h3>
+                            <i class="fas fa-concierge-bell"></i>
+                            Services Management
+                        </h3>
+                        <p>Manage services and categories</p>
+                    </div>
+
+                    <div class="management-two-column">
+                        <div class="mgmt-column">
+                            <div class="mgmt-card">
+                                <div class="mgmt-header">
+                                    <i class="fas fa-plus-circle"></i>
+                                    <h3>Add New Service</h3>
+                                </div>
+                                <div class="input-group">
+                                    <i class="fas fa-tag"></i>
+                                    <input type="text" id="new-service-name" placeholder="Service Name">
+                                </div>
+                                <div class="input-group">
+                                    <i class="fas fa-folder"></i>
+                                    <select id="new-service-category">
+                                        <option value="">Select or Add New Category...</option>
+                                    </select>
+                                </div>
+                                <div class="input-group">
+                                    <i class="fas fa-dollar-sign"></i>
+                                    <input type="number" id="new-service-price" placeholder="Price">
+                                </div>
+                                <div class="input-group">
+                                    <i class="fas fa-clock"></i>
+                                    <input type="number" id="new-service-dur" placeholder="Duration (minutes)">
+                                </div>
+                                <div class="checkbox-item" style="margin: 20px 0;">
+                                    <input type="checkbox" id="new-service-confirm">
+                                    <span>Requires Approval</span>
+                                </div>
+                                <button class="btn-primary" onclick="addService()">
+                                    <span>Add Service</span>
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mgmt-column">
+                            <div class="mgmt-card">
+                                <div class="mgmt-header">
+                                    <i class="fas fa-list"></i>
+                                    <h3>Service Menu</h3>
+                                </div>
+                                <div id="service-list-container"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CLIENT HISTORY TAB -->
+                <div id="admin-tab-history" class="admin-tab-content hidden">
+                    <div class="card-subheader">
+                        <h3>
+                            <i class="fas fa-user-clock"></i>
+                            Client History
+                        </h3>
+                        <p>Search and view client booking history</p>
+                    </div>
+
+                    <div class="input-group" style="max-width: 600px; margin: 0 auto 30px;">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="client-search-input" placeholder="Search by name or phone number">
+                    </div>
+
+                    <div id="client-history-results"></div>
+                </div>
+
+                <!-- REMINDERS TAB -->
+                <div id="admin-tab-reminders" class="admin-tab-content hidden">
+                    <div class="card-subheader">
+                        <h3>
+                            <i class="fas fa-comment-dots"></i>
+                            WhatsApp Reminders
+                        </h3>
+                        <p>Send appointment reminders to clients and staff</p>
+                    </div>
+
+                    <div class="admin-filters">
+                        <div class="filter-group">
+                            <label class="filter-label">FILTER BY DATE</label>
+                            <i class="fas fa-calendar-alt"></i>
+                            <input type="date" id="reminder-date-filter" class="filter-input" onchange="renderReminders()">
+                        </div>
+                        <div class="filter-group">
+                            <label class="filter-label">REMINDER TYPE</label>
+                            <i class="fas fa-filter"></i>
+                            <select id="reminder-type-filter" class="filter-input" onchange="renderReminders()">
+                                <option value="all">All Reminders</option>
+                                <option value="client">Client Reminders</option>
+                                <option value="staff">Staff Reminders</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="reminders-list"></div>
+                </div>
+
+                <!-- REPORTS TAB (NEW) -->
+                <div id="admin-tab-reports" class="admin-tab-content hidden">
+                    <div class="card-subheader">
+                        <h3>
+                            <i class="fas fa-chart-line"></i>
+                            Business Reports
+                        </h3>
+                        <p>Comprehensive analytics and insights</p>
+                    </div>
+
+                    <div class="admin-filters">
+                        <div class="filter-group">
+                            <label class="filter-label">REPORT TYPE</label>
+                            <i class="fas fa-chart-bar"></i>
+                            <select id="report-type-filter" class="filter-input" onchange="generateReport()">
+                                <option value="daily">Daily Report</option>
+                                <option value="weekly">Weekly Report</option>
+                                <option value="monthly">Monthly Report</option>
+                                <option value="yearly">Yearly Report</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label class="filter-label">SELECT DATE</label>
+                            <i class="fas fa-calendar-alt"></i>
+                            <input type="date" id="report-date-filter" class="filter-input" onchange="generateReport()">
+                        </div>
+                    </div>
+
+                    <button class="btn-primary" onclick="generateReport()" style="max-width: 300px; margin: 20px auto;">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Generate Report</span>
+                    </button>
+
+                    <div id="report-container"></div>
                 </div>
             </div>
         </div>
-    </div>
-</section>
-    </main>
 
-    <!-- SUCCESS MODAL -->
-    <div id="confirm-modal" class="modal">
-        <div class="modal-backdrop"></div>
-        <div class="modal-content" data-aos="zoom-in">
-            <div class="success-icon">
-                <i class="fas fa-check-circle"></i>
+        <!-- SPECIALIST SECTION -->
+        <div id="specialist-section" class="view hidden">
+            <div class="card admin-card">
+                <h1 class="page-title">
+                    <i class="fas fa-calendar-week"></i>
+                    My Schedule
+                </h1>
+                <p class="subtitle">View your upcoming appointments</p>
+
+                <div class="specialist-filters">
+                    <div class="filter-group">
+                        <label class="filter-label">SELECT DATE</label>
+                        <i class="fas fa-calendar-alt"></i>
+                        <input type="date" id="specialist-date-filter" class="filter-input">
+                    </div>
+                </div>
+
+                <div id="specialist-calendar-container" class="calendar-container"></div>
             </div>
-            <h3>Success!</h3>
-            <p id="modal-msg">Appointment Booked!</p>
-            <button onclick="closeModal()" class="btn-primary" data-testid="modal-close-button">
-                <span>Perfect!</span>
-                <i class="fas fa-thumbs-up"></i>
+        </div>
+
+    </div>
+
+    <!-- CONFIRMATION MODAL -->
+    <div id="confirm-modal" class="modal">
+        <div class="modal-backdrop" onclick="confirmModal.classList.remove('active')"></div>
+        <div class="modal-content">
+            <div class="success-icon">
+                <i class="fas fa-check"></i>
+            </div>
+            <h3>Booking Confirmed!</h3>
+            <p id="modal-msg">Your appointment has been confirmed successfully!</p>
+            <button class="btn-primary" onclick="confirmModal.classList.remove('active'); showView('client-profile-section')">
+                <span>View My Bookings</span>
+                <i class="fas fa-arrow-right"></i>
             </button>
         </div>
     </div>
 
-    <!-- STAFF SKILLS MODAL -->
+    <!-- SKILLS MODAL -->
     <div id="skills-modal" class="modal">
         <div class="modal-backdrop" onclick="closeSkillsModal()"></div>
         <div class="modal-content" style="max-width: 600px;">
             <h3 id="skills-modal-title">Manage Skills</h3>
-            <div id="skills-checkbox-list" class="checkbox-group" style="max-height: 400px; text-align: left; margin: 20px 0;">
-                <!-- Service checkboxes will be added here -->
+            <div id="skills-checkbox-list" class="checkbox-group" style="max-height: 400px;"></div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn-primary" onclick="saveStaffSkills()">
+                    <span>Save Skills</span>
+                    <i class="fas fa-check"></i>
+                </button>
+                <button class="btn-reject" onclick="closeSkillsModal()">
+                    <span>Cancel</span>
+                </button>
             </div>
-            <button onclick="saveStaffSkills()" class="btn-primary">
-                <span>Save Skills</span>
-                <i class="fas fa-save"></i>
-            </button>
         </div>
     </div>
+
+    <!-- ADMIN BOOKING MODAL -->
+    <div id="admin-booking-modal" class="modal">
+        <div class="modal-backdrop" onclick="closeAdminBookingModal()"></div>
+        <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
+            <h3>
+                <i class="fas fa-calendar-plus"></i>
+                Create Appointment
+            </h3>
+            
+            <div class="input-group">
+                <i class="fas fa-user"></i>
+                <input type="text" id="admin-client-name" placeholder="Client Name">
+            </div>
+            
+            <div class="input-group">
+                <i class="fas fa-phone"></i>
+                <input type="tel" id="admin-client-phone" placeholder="Client Phone">
+            </div>
+            
+            <div class="input-group">
+                <i class="fas fa-calendar-alt"></i>
+                <input type="date" id="admin-booking-date">
+            </div>
+            
+            <div class="input-group">
+                <i class="fas fa-user-tie"></i>
+                <select id="admin-booking-tech">
+                    <option value="">Choose specialist...</option>
+                </select>
+            </div>
+
+            <div class="form-label">SELECT SERVICES</div>
+            <div id="admin-service-checkbox-list" class="checkbox-group" style="max-height: 300px;"></div>
+
+            <div class="form-label">SELECT TIME SLOT</div>
+            <div id="admin-time-slots" class="time-grid" style="max-height: 250px;"></div>
+
+            <div id="admin-booking-details" class="summary-box hidden"></div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn-primary" onclick="confirmAdminBooking()">
+                    <span>Confirm Booking</span>
+                    <i class="fas fa-check"></i>
+                </button>
+                <button class="btn-reject" onclick="closeAdminBookingModal()">
+                    <span>Cancel</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
     import { 
@@ -434,5 +688,4 @@
 
     <script src="script.js"></script>
 </body>
-
 </html>
