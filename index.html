@@ -62,6 +62,11 @@
                         <i class="fas fa-phone"></i>
                         <input type="tel" id="phone" placeholder="Phone Number">
                     </div>
+
+                        <div class=input-group>
+                        <i class="fas fa-calendar"></i>
+                        <input type="date" id="dob" placeholder="Date of Birth">
+                    </div>
                 </div>
 
                 <button class="btn-primary btn-large" id="auth-action-btn">
@@ -242,10 +247,7 @@
                         <i class="fas fa-comments"></i>
                         <span>Reminders</span>
                     </button>
-                    <button class="tab-btn" onclick="switchAdminTab('reports')">
-                        <i class="fas fa-chart-bar"></i>
-                        <span>Reports</span>
-                    </button>
+
                 </div>
 
                 <!-- SCHEDULE TAB -->
@@ -597,12 +599,22 @@
                 <i class="fas fa-calendar-plus"></i>
                 Create Appointment
             </h3>
-            
+           <div class=input-with-search>
             <div class="input-group">
                 <i class="fas fa-user"></i>
                 <input type="text" id="admin-client-name" placeholder="Client Name">
             </div>
             
+                   <button class=btn-search onclick=searchClients()>
+                    <i class=fas fa-search\></i>
+                    <span>Search</span>
+                </button>
+            </div>
+            
+            <div id=client-search-results class=search-results hidden></div>
+
+
+
             <div class="input-group">
                 <i class="fas fa-phone"></i>
                 <input type="tel" id="admin-client-phone" placeholder="Client Phone">
