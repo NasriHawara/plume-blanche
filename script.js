@@ -18,6 +18,7 @@ let weeklyViewOffset = 0;
 let currentClientFilter = 'upcoming';
 let currentEditingStaff = null;
 let adminBookingContext = null;
+let allUsers = [];
 
 const datePicker = document.getElementById('date-picker');
 const detailsForm = document.getElementById('details-form');
@@ -28,6 +29,47 @@ const serviceCheckboxList = document.getElementById('service-checkbox-list');
 const techSelect = document.getElementById('tech-select');
 const bookingSummary = document.getElementById('booking-summary');
 const bookNowBtn = document.getElementById('book-now-btn');
+
+
+
+
+// ==========================================
+// HELPER FUNCTION - FIND USER BY PHONE NUMBER
+// ==========================================
+/**
+ * NEW FUNCTION: Searches all users in the database for a matching phone number
+ * @param {string} phone - The phone number to search for
+ * @returns {Promise<Object|null>} - Returns user data with Firebase UID if found, null otherwise
+ */
+async function findUserByPhone(phone) {
+    if (!phone) return null;
+    
+    try {
+        const usersRef = window.dbRef(window.db, 'users');
+        const snapshot = await window.dbGet(usersRef);
+        
+        if (!snapshot.exists()) return null;
+        
+        const users = snapshot.val();
+        
+        // Search through all users for matching phone number
+        for (const [uid, userData] of Object.entries(users)) {
+            if (userData.phone === phone) {
+                console.log("Found existing user with phone:", phone);
+                return {
+                    uid: uid,
+                    ...userData
+                };
+            }
+        }
+        
+        return null; // No user found with this phone number
+    } catch (error) {
+        console.error("Error searching for user by phone:", error);
+        return null;
+    }
+}
+
 
 // ==========================================
 // FIREBASE DATA SYNC
@@ -252,6 +294,7 @@ authBtn.onclick = async () => {
     const password = document.getElementById('password').value;
     const name = document.getElementById('fullname')?.value?.trim() || "";
     const phone = document.getElementById('phone')?.value?.trim() || "";
+    const dob = document.getElementById('dob')?.value || "";
 
     if (!email || !password) {
         showNotification('Please fill in email and password', 'warning');
@@ -265,30 +308,85 @@ authBtn.onclick = async () => {
 
     try {
         if (isLoggingIn) {
+            // ========== LOGIN FLOW (UNCHANGED) ==========
             const userCredential = await window.signInWithEmailAndPassword(window.auth, email, password);
             console.log("User logged in:", userCredential.user.uid);
             showNotification('Login successful!', 'success');
 
         } else {
-            const userCredential = await window.createUserWithEmailAndPassword(window.auth, email, password);
-            console.log("User created:", userCredential.user.uid);
+            // ========== SIGNUP FLOW (MODIFIED TO PREVENT DUPLICATES) ==========
+            
+            // STEP 1: Check if phone number already exists in database
+            console.log("Checking if phone number exists:", phone);
+            const existingUser = await findUserByPhone(phone);
+            
+            if (existingUser) {
+                // Phone number already exists - UPDATE existing user instead of creating new one
+                console.log("Phone number already exists. Updating existing user:", existingUser.uid);
+                
+                try {
+                    // Create Firebase Auth account with the new email/password
+                    const userCredential = await window.createUserWithEmailAndPassword(window.auth, email, password);
+                    console.log("Firebase Auth account created:", userCredential.user.uid);
+                    
+                    // Delete the old user record (without email/password)
+                    const oldUserRef = window.dbRef(window.db, `users/${existingUser.uid}`);
+                    await window.dbRemove(oldUserRef);
+                    console.log("Old user record removed:", existingUser.uid);
+                    
+                    // Create new user record with updated information under new Auth UID
+                    const updatedUserData = {
+                        email: email,
+                        name: name,
+                        phone: phone,
+                        dob: dob,
+                        role: existingUser.role || 'client', // Preserve existing role
+                        createdAt: existingUser.createdAt || new Date().toISOString(), // Preserve original creation date
+                        updatedAt: new Date().toISOString() // Mark as updated
+                    };
+                    
+                    const newUserRef = window.dbRef(window.db, `users/${userCredential.user.uid}`);
+                    await window.dbSet(newUserRef, updatedUserData);
+                    console.log("User data updated successfully");
+                    
+                    // Sync all appointments from the old UID to the new one
+                    await syncPhoneLinkedAppointments(userCredential.user.uid, phone);
+                    
+                    showNotification('Account updated successfully! Your previous appointments have been linked.', 'success');
+                    
+                } catch (authError) {
+                    if (authError.code === 'auth/email-already-in-use') {
+                        showNotification('This email is already registered. Please login instead or use a different email.', 'warning');
+                    } else {
+                        throw authError;
+                    }
+                }
+                
+            } else {
+                // Phone number does NOT exist - CREATE new user (original flow)
+                console.log("Phone number not found. Creating new user account.");
+                
+                const userCredential = await window.createUserWithEmailAndPassword(window.auth, email, password);
+                console.log("User created:", userCredential.user.uid);
 
-            const userData = {
-                email: email,
-                name: name,
-                phone: phone,
-                role: 'client',
-                createdAt: new Date().toISOString()
-            };
+                const userData = {
+                    email: email,
+                    name: name,
+                    phone: phone,
+                    dob: dob,
+                    role: 'client',
+                    createdAt: new Date().toISOString()
+                };
 
-            const userRef = window.dbRef(window.db, `users/${userCredential.user.uid}`);
-            await window.dbSet(userRef, userData);
-            console.log("Client account created");
+                const userRef = window.dbRef(window.db, `users/${userCredential.user.uid}`);
+                await window.dbSet(userRef, userData);
+                console.log("Client account created in users node.");
 
-            // FIX: Sync phone-linked appointments immediately after signup
-            await syncPhoneLinkedAppointments(userCredential.user.uid, phone);
+                // Sync phone-linked appointments immediately after signup
+                await syncPhoneLinkedAppointments(userCredential.user.uid, phone);
 
-            showNotification('Account created successfully!', 'success');
+                showNotification('Account created successfully!', 'success');
+            }
         }
 
     } catch (error) {
@@ -321,6 +419,18 @@ document.getElementById('logoutBtn').onclick = async () => {
     }
 };
 
+document.getElementById('logoutBtn').onclick = async () => {
+    if (confirm('Are you sure you want to logout?')) {
+        try {
+            await window.signOut(window.auth);
+            showNotification('Logged out successfully', 'info');
+        } catch (error) {
+            console.error("Logout error:", error);
+            showNotification('Logout failed', 'danger');
+        }
+    }
+};
+
 // ==========================================
 // BOOKING ENGINE
 // ==========================================
@@ -335,12 +445,11 @@ function renderServiceCheckboxes() {
 
     const categories = {};
     services.forEach(service => {
-                const isLaserService = service.category && (
+        const isLaserService = service.category && (
             service.category.toLowerCase().includes('laser') || 
             service.category.toLowerCase() === 'laser men' || 
             service.category.toLowerCase() === 'laser women'
         );
-
         // FIX: Hide laser services if not enabled for the date (unless admin)
         if (isLaserService && !isLaserEnabled && currentUser && currentUser.role !== 'admin') {
             return;
@@ -348,7 +457,7 @@ function renderServiceCheckboxes() {
 
         let catName = service.category || "General Services";
         if (isLaserService) {
-           catName = service.category; 
+             catName = service.category; 
         }
 
         if (!categories[catName]) categories[catName] = [];
@@ -1197,7 +1306,6 @@ function selectAdminTimeSlot(el) {
     el.classList.add('selected');
 }
 
-// FIX: Updated confirmAdminBooking to work with the new time slot system
 async function confirmAdminBooking() {
     const clientName = document.getElementById('admin-client-name').value.trim();
     const clientPhone = document.getElementById('admin-client-phone').value.trim();
@@ -1218,7 +1326,7 @@ async function confirmAdminBooking() {
     const bookingData = {
         name: clientName,
         phone: clientPhone,
-        email: 'booked-by-admin@salon.com',
+        email: "",
         userId: "ADMIN_MANUAL",
         specialistId: selectedSpecialist ? (selectedSpecialist.userId || "") : "",
         services: selectedServices.map(cb => cb.dataset.name),
@@ -1240,7 +1348,6 @@ async function confirmAdminBooking() {
         showNotification('Appointment created successfully!', 'success');
         closeAdminBookingModal();
 
-        // FIX: Check if user exists and sync
         await syncPhoneLinkedAppointments(null, clientPhone);
 
         renderAdminScheduler();
@@ -1248,6 +1355,81 @@ async function confirmAdminBooking() {
         console.error("Admin booking error:", error);
         showNotification('Failed to save booking', 'danger');
     }
+}
+
+// ==========================================
+// CLIENT SEARCH IN ADMIN BOOKING MODAL
+// ==========================================
+function searchClients() {
+    const searchTerm = document.getElementById('admin-client-name').value.trim().toLowerCase();
+    const resultsContainer = document.getElementById('client-search-results');
+
+    console.log("=== SEARCH DEBUG ===");
+    console.log("Search term:", searchTerm);
+    console.log("All users available:", window.allUsers ? window.allUsers.length : 0);
+
+    if (!searchTerm) {
+        resultsContainer.classList.add('hidden');
+        resultsContainer.innerHTML = '';
+        return;
+    }
+
+    // Search in all users (both signed up and imported)
+    const allUsers = window.allUsers || [];
+    
+    if (allUsers.length === 0) {
+        console.log("WARNING: No users loaded in window.allUsers");
+        resultsContainer.innerHTML = '<div style="padding: 15px; text-align: center; color: var(--warning);"><i class="fas fa-exclamation-triangle"></i> Users data not loaded yet. Please try again.</div>';
+        resultsContainer.classList.remove('hidden');
+        return;
+    }
+
+    const matchedUsers = allUsers.filter(user => {
+        if (user.role !== 'client') return false;
+
+        const name = (user.name || '').toLowerCase();
+        const phone = (user.phone || '').toString();
+
+        return name.includes(searchTerm) || phone.includes(searchTerm);
+    });
+
+    console.log("Matched users:", matchedUsers.length);
+
+    if (matchedUsers.length === 0) {
+        resultsContainer.innerHTML = '<div style="padding: 15px; text-align: center; color: var(--text-muted); font-size: 0.85rem;"><i class="fas fa-search"></i> No clients found matching "' + searchTerm + '"</div>';
+        resultsContainer.classList.remove('hidden');
+        return;
+    }
+
+    resultsContainer.innerHTML = matchedUsers.map(user => `
+        <div class="search-result-item" onclick="selectClient('${user.name.replace(/'/g, "\\'")}', '${user.phone}')">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h5 style="margin: 0; font-size: 1rem; color: var(--primary-dark);">${user.name}</h5>
+                    <p style="margin: 5px 0 0 0; font-size: 0.85rem; color: var(--text-muted);">
+                        <i class="fas fa-phone"></i> ${user.phone}
+                    </p>
+                    ${user.email  ? 
+                        `<p style="margin: 3px 0 0 0; font-size: 0.85rem; color: var(--text-muted);"><i class="fas fa-envelope"></i> ${user.email}</p>` 
+                        : ''}
+                </div>
+                <i class="fas fa-chevron-right" style="color: var(--text-muted);"></i>
+            </div>
+        </div>
+    `).join('');
+
+    resultsContainer.removeAttribute('hidden'); // Remove the HTML attribute
+    resultsContainer.classList.remove('hidden');
+}
+
+function selectClient(name, phone) {
+    document.getElementById('admin-client-name').value = name;
+    document.getElementById('admin-client-phone').value = phone;
+    document.getElementById('client-search-results').classList.add('hidden');
+    document.getElementById('client-search-results').innerHTML = '';
+    
+    showNotification('Client selected: ' + name, 'success');
+    resultsContainer.setAttribute('hidden', '');
 }
 
 // ==========================================
@@ -1597,6 +1779,44 @@ async function deleteService(serviceId) {
     }
 }
 
+
+
+
+
+
+async function loadAllUsers() {
+    try {
+        const usersRef = window.dbRef(window.db, 'users');
+        const snapshot = await window.dbGet(usersRef);
+        
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            window.allUsers = Object.keys(data).map(key => ({
+                ...data[key],
+                uid: key
+            }));
+            console.log("FORCE LOADED: Users data loaded:", window.allUsers.length, "users");
+            
+            // Force refresh the client history view if it's open
+            if (document.getElementById('admin-tab-history') && 
+                !document.getElementById('admin-tab-history').classList.contains('hidden')) {
+                renderClientHistory();
+            }
+        } else {
+            console.log("No users data found in database");
+            window.allUsers = [];
+        }
+    } catch (error) {
+        console.error("Error loading users:", error);
+        window.allUsers = [];
+    }
+}
+
+
+
+
+
+
 // ==========================================
 // CLIENT HISTORY
 // ==========================================
@@ -1615,6 +1835,12 @@ function renderClientHistory() {
 function performClientSearch() {
     const searchTerm = document.getElementById('client-search-input').value.trim().toLowerCase();
     const resultsContainer = document.getElementById('client-history-results');
+    
+    console.log("=== DEBUG: Starting search ===");
+    console.log("Search term:", searchTerm);
+    console.log("window.allUsers exists?", typeof window.allUsers);
+    console.log("window.allUsers is array?", Array.isArray(window.allUsers));
+    console.log("window.allUsers length:", window.allUsers?.length);
 
     if (!searchTerm) {
         resultsContainer.innerHTML = '<p style="text-align:center; color:var(--text-muted); padding:40px;"><i class="fas fa-search"></i><br>Search for a client by name or phone number</p>';
@@ -1623,12 +1849,56 @@ function performClientSearch() {
 
     const clientAppointments = {};
 
+    // 1. Process Users (Handles both Signed-up and Imported)
+    if (window.allUsers && Array.isArray(window.allUsers) && window.allUsers.length > 0) {
+        console.log("DEBUG: Processing allUsers array with", window.allUsers.length, "users");
+        
+        const usersList = window.allUsers;
+        let importedClientsFound = 0;
+
+        usersList.forEach((user, index) => {
+            console.log(`DEBUG: Checking user ${index}:`, user.name, "Role:", user.role, "ID:", user.uid);
+            
+            if (user.role !== 'client') return;
+            
+            const name = (user.name || "").toLowerCase();
+            const phone = (user.phone || "").toString();
+            
+            console.log(`DEBUG: Checking if "${name}" or "${phone}" includes "${searchTerm}"`);
+
+            if (name.includes(searchTerm) || phone.includes(searchTerm)) {
+                importedClientsFound++;
+                console.log(`DEBUG: MATCH FOUND! ${user.name} (${user.phone})`);
+                const key = user.phone || user.name;
+                
+                if (!clientAppointments[key]) {
+                    clientAppointments[key] = {
+                        name: user.name,
+                        phone: user.phone,
+                        email: user.email || 'N/A',
+                        appointments: [] 
+                    };
+                }
+            }
+        });
+        
+        console.log("DEBUG: Total imported clients found:", importedClientsFound);
+    } else {
+        console.log("DEBUG: window.allUsers not available or empty");
+    }
+
+    // 2. Add/Merge Appointments (rest of your function stays exactly the same)
+    // ... rest of your existing code ...
+
+    // 2. Add/Merge Appointments
     mockAppointments.forEach(appt => {
         const matchesName = appt.name && appt.name.toLowerCase().includes(searchTerm);
         const matchesPhone = appt.phone && appt.phone.includes(searchTerm);
 
         if (matchesName || matchesPhone) {
             const key = appt.phone || appt.name;
+            
+            // If they weren't in allUsers, create the entry now
             if (!clientAppointments[key]) {
                 clientAppointments[key] = {
                     name: appt.name,
@@ -1649,11 +1919,14 @@ function performClientSearch() {
     }
 
     resultsContainer.innerHTML = clients.map(client => {
-        client.appointments.sort((a, b) => {
-            const dateA = new Date(a.date + 'T' + a.time);
-            const dateB = new Date(b.date + 'T' + b.time);
-            return dateB - dateA;
-        });
+        // ONLY sort if there are actually appointments to sort
+        if (client.appointments.length > 0) {
+            client.appointments.sort((a, b) => {
+                const dateA = new Date(a.date + 'T' + a.time);
+                const dateB = new Date(b.date + 'T' + b.time);
+                return dateB - dateA;
+            });
+        }
 
         const upcomingCount = client.appointments.filter(a => {
             const apptDate = new Date(a.date + 'T' + a.time);
@@ -1664,6 +1937,31 @@ function performClientSearch() {
             const apptDate = new Date(a.date + 'T' + a.time);
             return apptDate < new Date() && a.status === 'confirmed';
         }).length;
+
+        // Create the History HTML only if there are appointments
+        const historyHTML = client.appointments.length > 0 
+            ? client.appointments.map(appt => {
+                const statusClass = appt.status === 'confirmed' ? 'success' :
+                                   appt.status === 'pending' ? 'warning' : 'muted';
+                const statusIcon = appt.status === 'confirmed' ? 'fa-check-circle' :
+                                  appt.status === 'pending' ? 'fa-clock' : 'fa-times-circle';
+
+                return `
+                    <div class="appointment-mini-card">
+                        <div class="appt-mini-header">
+                            <span><strong>${new Date(appt.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</strong> at ${appt.time}</span>
+                            <span class="badge badge-${statusClass}">
+                                <i class="fas ${statusIcon}"></i> ${appt.status}
+                            </span>
+                        </div>
+                        <div class="appt-mini-details">
+                            <p><i class="fas fa-user-tie"></i> ${appt.tech}</p>
+                            <p><i class="fas fa-concierge-bell"></i> ${Array.isArray(appt.services) ? appt.services.join(', ') : appt.services}</p>
+                            <p><i class="fas fa-dollar-sign"></i> $${appt.price}</p>
+                        </div>
+                    </div>`;
+            }).join('')
+            : '<p style="color:var(--text-muted); font-style:italic;">No appointment history found for this client.</p>';
 
         return `
             <div class="client-history-card">
@@ -1684,31 +1982,9 @@ function performClientSearch() {
                         </div>
                     </div>
                 </div>
-
                 <div class="client-appointments-list">
                     <h4 style="margin-bottom: 15px; color: var(--primary-dark);">Appointment History</h4>
-                    ${client.appointments.map(appt => {
-                        const statusClass = appt.status === 'confirmed' ? 'success' :
-                                          appt.status === 'pending' ? 'warning' : 'muted';
-                        const statusIcon = appt.status === 'confirmed' ? 'fa-check-circle' :
-                                         appt.status === 'pending' ? 'fa-clock' : 'fa-times-circle';
-
-                        return `
-                            <div class="appointment-mini-card">
-                                <div class="appt-mini-header">
-                                    <span><strong>${new Date(appt.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</strong> at ${appt.time}</span>
-                                    <span class="badge badge-${statusClass}">
-                                        <i class="fas ${statusIcon}"></i> ${appt.status}
-                                    </span>
-                                </div>
-                                <div class="appt-mini-details">
-                                    <p><i class="fas fa-user-tie"></i> ${appt.tech}</p>
-                                    <p><i class="fas fa-concierge-bell"></i> ${Array.isArray(appt.services) ? appt.services.join(', ') : appt.services}</p>
-                                    <p><i class="fas fa-dollar-sign"></i> $${appt.price}</p>
-                                </div>
-                            </div>
-                        `;
-                    }).join('')}
+                    ${historyHTML}
                 </div>
             </div>
         `;
@@ -1839,336 +2115,6 @@ function sendWhatsAppReminder(reminderKey, phone, name, date, time, services, ty
     renderReminders();
 
     showNotification('WhatsApp opened with reminder message', 'success');
-}
-
-// ==========================================
-// REPORTS FEATURE (NEW - COMPREHENSIVE)
-// ==========================================
-function generateReport() {
-    const reportType = document.getElementById('report-type-filter').value;
-    const selectedDate = document.getElementById('report-date-filter').value || new Date().toISOString().split('T')[0];
-    const container = document.getElementById('report-container');
-
-    if (!container) return;
-
-    // Calculate date range based on report type
-    const { startDate, endDate } = getReportDateRange(reportType, selectedDate);
-
-    // Filter appointments within date range
-    const reportAppointments = mockAppointments.filter(appt => {
-        const apptDate = new Date(appt.date);
-        return apptDate >= startDate && apptDate <= endDate && appt.status === 'confirmed';
-    });
-
-    // Calculate metrics
-    const metrics = calculateReportMetrics(reportAppointments);
-
-    // Generate report HTML
-    container.innerHTML = `
-        <div class="card admin-card" style="margin-top: 30px;">
-            <div class="card-subheader">
-                <h3>
-                    <i class="fas fa-chart-line"></i>
-                    ${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Report
-                </h3>
-                <p>${formatDateRange(startDate, endDate)}</p>
-            </div>
-
-            <!-- Financial Metrics -->
-            <div style="margin-bottom: 40px;">
-                <h4 style="font-family: 'Playfair Display'; font-size: 1.5rem; margin-bottom: 20px; color: var(--primary-dark);">
-                    <i class="fas fa-dollar-sign"></i> Financial Overview
-                </h4>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
-                    <div class="stat-card" style="padding: 20px; background: var(--gradient-soft); border-radius: 16px; border: 2px solid rgba(188, 148, 127, 0.2);">
-                        <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">
-                            <i class="fas fa-hand-holding-usd"></i> Total Revenue
-                        </div>
-                        <div style="font-size: 2rem; font-weight: 700; color: var(--primary-dark);">
-                            $${metrics.financial.totalRevenue}
-                        </div>
-                    </div>
-                    <div class="stat-card" style="padding: 20px; background: var(--gradient-soft); border-radius: 16px; border: 2px solid rgba(188, 148, 127, 0.2);">
-                        <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">
-                            <i class="fas fa-chart-line"></i> Average Transaction
-                        </div>
-                        <div style="font-size: 2rem; font-weight: 700; color: var(--primary-dark);">
-                            $${metrics.financial.avgTransaction}
-                        </div>
-                    </div>
-                    <div class="stat-card" style="padding: 20px; background: var(--gradient-soft); border-radius: 16px; border: 2px solid rgba(188, 148, 127, 0.2);">
-                        <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">
-                            <i class="fas fa-receipt"></i> Total Appointments
-                        </div>
-                        <div style="font-size: 2rem; font-weight: 700; color: var(--primary-dark);">
-                            ${metrics.financial.totalAppointments}
-                        </div>
-                    </div>
-                </div>
-
-                <h5 style="margin-top: 30px; margin-bottom: 15px; color: var(--primary-dark);">
-                    <i class="fas fa-concierge-bell"></i> Revenue by Service
-                </h5>
-                <div style="background: white; padding: 20px; border-radius: 12px; border: 2px solid rgba(188, 148, 127, 0.2);">
-                    ${metrics.financial.revenueByService.map(item => `
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid rgba(188, 148, 127, 0.1);">
-                            <span style="font-weight: 600;">${item.service}</span>
-                            <span style="color: var(--primary-dark); font-weight: 700;">$${item.revenue} <span style="color: var(--text-muted); font-size: 0.85rem;">(${item.count} bookings)</span></span>
-                        </div>
-                    `).join('')}
-                </div>
-
-                <h5 style="margin-top: 30px; margin-bottom: 15px; color: var(--primary-dark);">
-                    <i class="fas fa-user-tie"></i> Revenue by Staff
-                </h5>
-                <div style="background: white; padding: 20px; border-radius: 12px; border: 2px solid rgba(188, 148, 127, 0.2);">
-                    ${metrics.financial.revenueByStaff.map(item => `
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid rgba(188, 148, 127, 0.1);">
-                            <span style="font-weight: 600;">${item.staff}</span>
-                            <span style="color: var(--primary-dark); font-weight: 700;">$${item.revenue} <span style="color: var(--text-muted); font-size: 0.85rem;">(${item.count} appointments)</span></span>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-
-            <!-- Client Metrics -->
-            <div style="margin-bottom: 40px;">
-                <h4 style="font-family: 'Playfair Display'; font-size: 1.5rem; margin-bottom: 20px; color: var(--primary-dark);">
-                    <i class="fas fa-users"></i> Client Analytics
-                </h4>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
-                    <div class="stat-card" style="padding: 20px; background: var(--gradient-soft); border-radius: 16px; border: 2px solid rgba(188, 148, 127, 0.2);">
-                        <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">
-                            <i class="fas fa-user-plus"></i> Total Clients
-                        </div>
-                        <div style="font-size: 2rem; font-weight: 700; color: var(--primary-dark);">
-                            ${metrics.clients.totalClients}
-                        </div>
-                    </div>
-                    <div class="stat-card" style="padding: 20px; background: var(--gradient-soft); border-radius: 16px; border: 2px solid rgba(188, 148, 127, 0.2);">
-                        <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">
-                            <i class="fas fa-star"></i> New Clients
-                        </div>
-                        <div style="font-size: 2rem; font-weight: 700; color: var(--primary-dark);">
-                            ${metrics.clients.newClients}
-                        </div>
-                    </div>
-                    <div class="stat-card" style="padding: 20px; background: var(--gradient-soft); border-radius: 16px; border: 2px solid rgba(188, 148, 127, 0.2);">
-                        <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">
-                            <i class="fas fa-redo"></i> Returning Clients
-                        </div>
-                        <div style="font-size: 2rem; font-weight: 700; color: var(--primary-dark);">
-                            ${metrics.clients.returningClients}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Staff Performance -->
-            <div style="margin-bottom: 40px;">
-                <h4 style="font-family: 'Playfair Display'; font-size: 1.5rem; margin-bottom: 20px; color: var(--primary-dark);">
-                    <i class="fas fa-trophy"></i> Staff Performance
-                </h4>
-                <div style="background: white; padding: 20px; border-radius: 12px; border: 2px solid rgba(188, 148, 127, 0.2);">
-                    ${metrics.staff.map(item => `
-                        <div style="padding: 15px 0; border-bottom: 1px solid rgba(188, 148, 127, 0.1);">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                                <span style="font-weight: 700; font-size: 1.1rem;">${item.name}</span>
-                                <span style="background: var(--gradient-primary); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600;">
-                                    ${item.appointments} appointments
-                                </span>
-                            </div>
-                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 10px;">
-                                <div>
-                                    <div style="font-size: 0.8rem; color: var(--text-muted);">Revenue</div>
-                                    <div style="font-weight: 700; color: var(--primary-dark);">$${item.revenue}</div>
-                                </div>
-                                <div>
-                                    <div style="font-size: 0.8rem; color: var(--text-muted);">Hours Worked</div>
-                                    <div style="font-weight: 700; color: var(--primary-dark);">${item.hoursWorked}h</div>
-                                </div>
-                                <div>
-                                    <div style="font-size: 0.8rem; color: var(--text-muted);">Avg/Appointment</div>
-                                    <div style="font-weight: 700; color: var(--primary-dark);">$${item.avgPerAppt}</div>
-                                </div>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-
-            <!-- Service Popularity -->
-            <div>
-                <h4 style="font-family: 'Playfair Display'; font-size: 1.5rem; margin-bottom: 20px; color: var(--primary-dark);">
-                    <i class="fas fa-fire"></i> Service Popularity
-                </h4>
-                <div style="background: white; padding: 20px; border-radius: 12px; border: 2px solid rgba(188, 148, 127, 0.2);">
-                    ${metrics.services.map((item, index) => `
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid rgba(188, 148, 127, 0.1);">
-                            <div style="display: flex; align-items: center; gap: 15px;">
-                                <span style="font-weight: 700; font-size: 1.2rem; color: var(--primary-tan);">#${index + 1}</span>
-                                <span style="font-weight: 600;">${item.service}</span>
-                            </div>
-                            <span style="color: var(--primary-dark); font-weight: 700;">${item.count} bookings</span>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-
-            <button class="btn-primary" onclick="exportReport()" style="margin-top: 30px; max-width: 300px; margin-left: auto; margin-right: auto;">
-                <i class="fas fa-download"></i>
-                <span>Export Report</span>
-            </button>
-        </div>
-    `;
-}
-
-function getReportDateRange(reportType, selectedDate) {
-    const date = new Date(selectedDate + 'T00:00:00');
-    let startDate, endDate;
-
-    switch (reportType) {
-        case 'daily':
-            startDate = new Date(date);
-            endDate = new Date(date);
-            break;
-        case 'weekly':
-            // Get start of week (Monday)
-            const dayOfWeek = date.getDay();
-            const diffToMonday = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek;
-            startDate = new Date(date);
-            startDate.setDate(date.getDate() + diffToMonday);
-            endDate = new Date(startDate);
-            endDate.setDate(startDate.getDate() + 6);
-            break;
-        case 'monthly':
-            startDate = new Date(date.getFullYear(), date.getMonth(), 1);
-            endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-            break;
-        case 'yearly':
-            startDate = new Date(date.getFullYear(), 0, 1);
-            endDate = new Date(date.getFullYear(), 11, 31);
-            break;
-    }
-
-    return { startDate, endDate };
-}
-
-function calculateReportMetrics(appointments) {
-    // Financial metrics
-    const totalRevenue = appointments.reduce((sum, appt) => sum + (appt.price || 0), 0);
-    const avgTransaction = appointments.length > 0 ? Math.round(totalRevenue / appointments.length) : 0;
-
-    // Revenue by service
-    const serviceRevenue = {};
-    appointments.forEach(appt => {
-        if (Array.isArray(appt.services)) {
-            appt.services.forEach(service => {
-                if (!serviceRevenue[service]) {
-                    serviceRevenue[service] = { count: 0, revenue: 0 };
-                }
-                serviceRevenue[service].count++;
-                serviceRevenue[service].revenue += Math.round((appt.price || 0) / appt.services.length);
-            });
-        }
-    });
-
-    const revenueByService = Object.entries(serviceRevenue)
-        .map(([service, data]) => ({ service, ...data }))
-        .sort((a, b) => b.revenue - a.revenue);
-
-    // Revenue by staff
-    const staffRevenue = {};
-    appointments.forEach(appt => {
-        if (!staffRevenue[appt.tech]) {
-            staffRevenue[appt.tech] = { count: 0, revenue: 0 };
-        }
-        staffRevenue[appt.tech].count++;
-        staffRevenue[appt.tech].revenue += appt.price || 0;
-    });
-
-    const revenueByStaff = Object.entries(staffRevenue)
-        .map(([staff, data]) => ({ staff, ...data }))
-        .sort((a, b) => b.revenue - a.revenue);
-
-    // Client metrics
-    const uniqueClients = new Set();
-    const clientAppointmentCounts = {};
-    
-    appointments.forEach(appt => {
-        const clientKey = appt.phone || appt.email;
-        uniqueClients.add(clientKey);
-        if (!clientAppointmentCounts[clientKey]) {
-            clientAppointmentCounts[clientKey] = 0;
-        }
-        clientAppointmentCounts[clientKey]++;
-    });
-
-    const newClients = Object.values(clientAppointmentCounts).filter(count => count === 1).length;
-    const returningClients = uniqueClients.size - newClients;
-
-    // Staff performance
-    const staffPerformance = Object.entries(staffRevenue).map(([name, data]) => {
-        const staffAppts = appointments.filter(a => a.tech === name);
-        const totalMinutes = staffAppts.reduce((sum, a) => sum + (a.duration || 0), 0);
-        const hoursWorked = Math.round(totalMinutes / 60 * 10) / 10;
-        const avgPerAppt = data.count > 0 ? Math.round(data.revenue / data.count) : 0;
-
-        return {
-            name,
-            appointments: data.count,
-            revenue: data.revenue,
-            hoursWorked,
-            avgPerAppt
-        };
-    }).sort((a, b) => b.revenue - a.revenue);
-
-    // Service popularity
-    const serviceCounts = {};
-    appointments.forEach(appt => {
-        if (Array.isArray(appt.services)) {
-            appt.services.forEach(service => {
-                serviceCounts[service] = (serviceCounts[service] || 0) + 1;
-            });
-        }
-    });
-
-    const servicePopularity = Object.entries(serviceCounts)
-        .map(([service, count]) => ({ service, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 10);
-
-    return {
-        financial: {
-            totalRevenue,
-            avgTransaction,
-            totalAppointments: appointments.length,
-            revenueByService,
-            revenueByStaff
-        },
-        clients: {
-            totalClients: uniqueClients.size,
-            newClients,
-            returningClients
-        },
-        staff: staffPerformance,
-        services: servicePopularity
-    };
-}
-
-function formatDateRange(startDate, endDate) {
-    const options = { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Beirut' };
-    const start = startDate.toLocaleDateString('en-US', options);
-    const end = endDate.toLocaleDateString('en-US', options);
-    
-    if (start === end) {
-        return start;
-    }
-    return `${start} - ${end}`;
-}
-
-function exportReport() {
-    showNotification('Report export feature coming soon!', 'info');
 }
 
 // ==========================================
@@ -2637,6 +2583,7 @@ window.onload = () => {
                         startFirebaseSync();
                         startNotificationChecker();
                         requestNotificationPermission();
+                          loadAllUsers(); 
                     } else if (currentUser.role === 'specialist') {
                         showView('specialist-section');
                         startFirebaseSync();
@@ -2680,5 +2627,3 @@ window.onload = () => {
         }
     });
 };
-
-
