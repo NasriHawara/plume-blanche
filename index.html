@@ -301,6 +301,10 @@
                             <i class="fas fa-calendar-week"></i>
                             <span>Weekly View</span>
                         </button>
+                        <button class="btn-view-toggle" onclick="switchView('monthly')">
+                            <i class="fas fa-calendar"></i>
+                            <span>Monthly View</span>
+                        </button>
                     </div>
 
                     <div id="daily-view" class="scheduler-container">
@@ -319,6 +323,9 @@
                             </button>
                         </div>
                         <div id="weekly-calendar" class="weekly-preview-grid"></div>
+                    </div>
+                    <div id="monthly-view" class="hidden">
+                        <div id="monthly-calendar"></div>
                     </div>
                 </div>
 
@@ -633,6 +640,10 @@
             </div>
 
             <div class="form-label">SELECT SERVICES</div>
+            <div class="input-group" style="margin-bottom: 10px;">
+                <i class="fas fa-search"></i>
+                <input type="text" id="admin-service-search" placeholder="Search services..." oninput="searchAdminServices()">
+            </div>
             <div id="admin-service-checkbox-list" class="checkbox-group" style="max-height: 300px;"></div>
 
             <div class="form-label">SELECT TIME SLOT</div>
@@ -647,6 +658,30 @@
                 </button>
                 <button class="btn-reject" onclick="closeAdminBookingModal()">
                     <span>Cancel</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- EDIT APPOINTMENT MODAL -->
+    <div id="edit-appointment-modal" class="modal">
+        <div class="modal-backdrop" onclick="closeEditAppointmentModal()"></div>
+        <div class="modal-content" style="max-width: 500px;">
+            <h3>Appointment Details</h3>
+            <p style="margin-bottom: 20px; color: var(--text-muted);">View and manage appointment</p>
+            
+            <div class="appointment-details-view" id="edit-appointment-details">
+                <!-- Details will be populated by JavaScript -->
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn-primary" style="flex: 1; background: var(--danger);" onclick="deleteAppointmentFromModal()">
+                    <i class="fas fa-trash"></i>
+                    <span>Cancel Appointment</span>
+                </button>
+                <button class="btn-primary" style="flex: 1;" onclick="closeEditAppointmentModal()">
+                    <i class="fas fa-times"></i>
+                    <span>Close</span>
                 </button>
             </div>
         </div>
