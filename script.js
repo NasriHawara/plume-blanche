@@ -712,7 +712,8 @@ bookNowBtn.onclick = async () => {
         price: totalPrice,
         date: datePicker.value,
         status: needsApproval ? 'pending' : 'confirmed',
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        comments: document.getElementById('booking-comments')?.value || ""
     };
 
     const appointmentsRef = window.dbRef(window.db, 'appointments');
@@ -1057,11 +1058,11 @@ function renderAdminScheduler() {
 
     for (let i = 0; i <= totalSlots; i++) {
         let mins = (APP_SETTINGS.openingTime * 60) + (i * 15);
-        let timeLabel = (mins % 60 === 0) ? formatMinsToTime(mins) : "";
-        let timeStr = formatMinsToTime(mins);
+let timeLabel = formatMinsToTime(mins);  // NOW SHOWS ALL TIMES
+let timeStr = formatMinsToTime(mins);
 
-        const lbl = document.createElement('div');
-        lbl.className = 'time-label';
+const lbl = document.createElement('div');
+lbl.className = (mins % 60 === 0) ? 'time-label' : 'time-label time-label-small';  // Different style for :15, :30, :45
         lbl.style.gridRow = i + 2;
         lbl.innerText = timeLabel;
         grid.appendChild(lbl);
@@ -1318,7 +1319,7 @@ function updateAdminBookingTotal() {
     }
 }
 
-// FIX: New function to generate 15min time slots with busy checking for admin
+// FIX: Generate 5-minute time slots with EXTENDED hours for admin only
 function generateAdminTimeSlots(totalDuration) {
     const timeSlotsContainer = document.getElementById('admin-time-slots');
     const selectedDate = document.getElementById('admin-booking-date').value;
@@ -1331,8 +1332,12 @@ function generateAdminTimeSlots(totalDuration) {
 
     timeSlotsContainer.innerHTML = '';
 
-    let startMins = APP_SETTINGS.openingTime * 60;
-    const limitMins = APP_SETTINGS.closingTime * 60;
+    // ADMIN EXTENDED HOURS: Start 1 hour earlier and end 1 hour later than regular hours
+    let startMins = (APP_SETTINGS.openingTime - 1) * 60;  // e.g., 9 AM instead of 10 AM
+    const limitMins = (APP_SETTINGS.closingTime + 2) * 60;  // e.g., 8 PM instead of 7 PM
+    
+    // ADMIN USES 5-MINUTE INTERVALS (instead of 15)
+    const adminSlotInterval = 5;
 
     let slotsAdded = 0;
 
@@ -1353,7 +1358,7 @@ function generateAdminTimeSlots(totalDuration) {
             timeSlotsContainer.appendChild(slot);
             slotsAdded++;
         }
-        startMins += APP_SETTINGS.slotInterval;
+        startMins += adminSlotInterval;  // Increment by 5 minutes
     }
 
     if (slotsAdded === 0) {
@@ -1371,15 +1376,7 @@ async function confirmAdminBooking() {
     const clientName = document.getElementById('admin-client-name').value.trim();
     const clientPhone = document.getElementById('admin-client-phone').value.trim();
     
-    // If no client was selected via search, use the manually entered data
-    const finalClientData = selectedClient || {
-        uid: 'ADMIN_MANUAL',
-        name: clientName,
-        phone: clientPhone,
-        email: ''
-    };
-    
-    if (!finalClientData.name || !finalClientData.phone) {
+    if (!clientName || !clientPhone) {
         showNotification('Please enter client name and phone', 'warning');
         return;
     }
@@ -1393,37 +1390,89 @@ async function confirmAdminBooking() {
         return;
     }
     
-    // Find selected time slot
     const selectedTimeSlot = document.querySelector('#admin-time-slots .time-slot.selected');
     if (!selectedTimeSlot) {
         showNotification('Please select a time slot', 'warning');
         return;
     }
     
-    const selectedSpecialist = technicians.find(t => t.name === techName);
-    
-    // FIX: Use selected client's data, NOT admin's data
-    const bookingData = {
-        name: finalClientData.name,      // Client's name
-        phone: finalClientData.phone,    // Client's phone
-        email: finalClientData.email,    // Client's email
-        userId: finalClientData.uid,     // Client's UID
-        specialistId: selectedSpecialist ? (selectedSpecialist.userId || "") : "",
-        services: selectedServices.map(cb => cb.dataset.name),
-        serviceIds: selectedServices.map(cb => cb.value),
-        tech: techName,
-        time: selectedTimeSlot.innerText,
-        duration: selectedServices.reduce((sum, cb) => sum + parseInt(cb.dataset.dur || 30), 0),
-        price: selectedServices.reduce((sum, cb) => sum + parseFloat(cb.dataset.price || 0), 0),
-        date: date,
-        status: 'confirmed',
-        createdAt: new Date().toISOString(),
-        createdBy: 'admin'
-    };
-    
-    console.log("Creating appointment with client data:", bookingData);
-    
     try {
+        let finalClientData;
+        
+        if (selectedClient) {
+            finalClientData = selectedClient;
+        } else {
+            const usersRef = window.dbRef(window.db, 'users');
+            const usersSnapshot = await window.dbGet(usersRef);
+            let existingUser = null;
+            
+            if (usersSnapshot.exists()) {
+                const users = usersSnapshot.val();
+                existingUser = Object.entries(users).find(([uid, user]) => 
+                    user.phone === clientPhone && user.role === 'client'
+                );
+            }
+            
+            if (existingUser) {
+                const [uid, userData] = existingUser;
+                finalClientData = {
+                    uid: uid,
+                    name: userData.name,
+                    phone: userData.phone,
+                    email: userData.email || ''
+                };
+            } else {
+                const newUserRef = window.dbPush(usersRef);
+                const newUserId = newUserRef.key;
+                
+                const newUserData = {
+                    name: clientName,
+                    phone: clientPhone,
+                    email: '',
+                    role: 'client',
+                    createdAt: new Date().toISOString(),
+                    createdBy: 'admin',
+                    source: 'admin_booking'
+                };
+                
+                await window.dbSet(newUserRef, newUserData);
+                
+                finalClientData = {
+                    uid: newUserId,
+                    name: clientName,
+                    phone: clientPhone,
+                    email: ''
+                };
+                
+                if (window.allUsers) {
+                    window.allUsers.push({
+                        ...newUserData,
+                        uid: newUserId
+                    });
+                }
+            }
+        }
+        
+        const selectedSpecialist = technicians.find(t => t.name === techName);
+        
+        const bookingData = {
+            name: finalClientData.name,
+            phone: finalClientData.phone,
+            email: finalClientData.email,
+            userId: finalClientData.uid,
+            specialistId: selectedSpecialist ? (selectedSpecialist.userId || "") : "",
+            services: selectedServices.map(cb => cb.dataset.name),
+            serviceIds: selectedServices.map(cb => cb.value),
+            tech: techName,
+            time: selectedTimeSlot.innerText,
+            duration: selectedServices.reduce((sum, cb) => sum + parseInt(cb.dataset.dur || 30), 0),
+            price: selectedServices.reduce((sum, cb) => sum + parseFloat(cb.dataset.price || 0), 0),
+            date: date,
+            status: 'confirmed',
+            createdAt: new Date().toISOString(),
+            createdBy: 'admin'
+        };
+        
         const appointmentsRef = window.dbRef(window.db, 'appointments');
         const newApptRef = window.dbPush(appointmentsRef);
         await window.dbSet(newApptRef, bookingData);
@@ -1432,11 +1481,10 @@ async function confirmAdminBooking() {
         closeAdminBookingModal();
         renderAdminScheduler();
         
-        // Clear the selected client
         window.selectedClientForBooking = null;
     } catch (error) {
         console.error("Admin booking error:", error);
-        showNotification('Failed to save booking', 'danger');
+        showNotification('Failed to save booking: ' + error.message, 'danger');
     }
 }
 
@@ -1506,13 +1554,20 @@ function searchClients() {
 }
 
 function selectClient(name, phone) {
+    // Find the full user object from allUsers
+    const user = window.allUsers.find(u => u.name === name && u.phone === phone);
+    
+    // Store the complete user object including uid
+    window.selectedClientForBooking = user || null;
+    
     document.getElementById('admin-client-name').value = name;
     document.getElementById('admin-client-phone').value = phone;
-    document.getElementById('client-search-results').classList.add('hidden');
-    document.getElementById('client-search-results').innerHTML = '';
+    
+    const resultsContainer = document.getElementById('client-search-results');
+    resultsContainer.classList.add('hidden');
+    resultsContainer.innerHTML = '';
     
     showNotification('Client selected: ' + name, 'success');
-    resultsContainer.setAttribute('hidden', '');
 }
 
 // ==========================================
@@ -2889,6 +2944,12 @@ window.openEditAppointmentModal = function(appointmentId) {
             <strong><i class="fas fa-dollar-sign"></i> Price:</strong>
             <span>$${appointment.price}</span>
         </div>
+
+            <div class="detail-row">
+                <strong><i class="fas fa-comment"></i> Notes:</strong>
+                <span>${appointment.comments}</span>
+            </div>
+
         <div class="detail-row">
             <strong><i class="fas fa-info-circle"></i> Status:</strong>
             <span class="status-badge status-${appointment.status}">${appointment.status.toUpperCase()}</span>
@@ -3254,3 +3315,338 @@ async function deleteAppointmentFromModal() {
 
 };
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Switch to edit mode with debugging
+function switchToEditMode() {
+    if (!window.currentEditingAppointment) {
+        console.error("No appointment selected for editing");
+        showNotification('No appointment selected', 'danger');
+        return;
+    }
+    
+    const appt = window.currentEditingAppointment;
+    console.log("Switching to edit mode for appointment:", appt);
+    console.log("Available technicians:", technicians);
+    
+    // Check if technicians array is loaded
+    if (!technicians || technicians.length === 0) {
+        console.error("Technicians array is empty! Trying to reload...");
+        showNotification('Loading staff data...', 'info');
+        
+        // Try to reload technicians from Firebase
+        const techRef = window.dbRef(window.db, 'technicians');
+        window.dbGet(techRef).then(snapshot => {
+            const data = snapshot.val();
+            if (data) {
+                technicians = Object.keys(data).map(key => ({
+                    ...data[key],
+                    id: key
+                }));
+                console.log("Technicians reloaded:", technicians);
+                // Try again after loading
+                continueEditMode(appt);
+            } else {
+                showNotification('No staff members found in database', 'danger');
+            }
+        }).catch(error => {
+            console.error("Error loading technicians:", error);
+            showNotification('Failed to load staff data', 'danger');
+        });
+        return;
+    }
+    
+    continueEditMode(appt);
+}
+
+// Continue with edit mode after ensuring data is loaded
+function continueEditMode(appt) {
+    // Hide view mode, show edit mode
+    document.getElementById('edit-view-mode').classList.add('hidden');
+    document.getElementById('edit-edit-mode').classList.remove('hidden');
+    
+    // Populate date
+    document.getElementById('edit-appointment-date').value = appt.date;
+    document.getElementById('edit-appointment-date').min = new Date().toISOString().split('T')[0];
+    
+    // Populate time (convert from 12h to 24h for input)
+    const time24h = convertTo24Hour(appt.time);
+    console.log("Converting time:", appt.time, "to", time24h);
+    document.getElementById('edit-appointment-time').value = time24h;
+    
+    // Populate technicians dropdown
+    const techSelect = document.getElementById('edit-appointment-tech');
+    console.log("Populating tech select with", technicians.length, "technicians");
+    
+    techSelect.innerHTML = '<option value="">Select specialist...</option>';
+    technicians.forEach(tech => {
+        const selected = tech.name === appt.tech ? 'selected' : '';
+        const option = document.createElement('option');
+        option.value = tech.name;
+        option.textContent = tech.name;
+        if (selected) option.selected = true;
+        techSelect.appendChild(option);
+        console.log("Added tech option:", tech.name, selected ? "(selected)" : "");
+    });
+    
+    // Force a refresh of the select element
+    techSelect.style.display = 'none';
+    setTimeout(() => {
+        techSelect.style.display = 'block';
+    }, 10);
+    
+    console.log("Final select HTML:", techSelect.innerHTML);
+    
+    // Populate services with checkboxes
+    renderEditServiceCheckboxes(appt.serviceIds || []);
+    
+    showNotification('Ready to edit appointment', 'success');
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ==========================================
+// EDIT APPOINTMENT MODAL - MISSING FUNCTIONS FIX
+// Add these functions to script.js
+// ==========================================
+
+// Helper function to convert 12h time to 24h format
+function convertTo24Hour(time12h) {
+    if (!time12h) return '';
+
+    const [time, modifier] = time12h.split(' ');
+    let [hours, minutes] = time.split(':');
+
+    if (hours === '12') {
+        hours = '00';
+    }
+
+    if (modifier === 'PM') {
+        hours = parseInt(hours, 10) + 12;
+    }
+
+    return `${hours}:${minutes}`;
+}
+
+// Cancel edit mode and return to view mode
+function cancelEditMode() {
+    console.log("Cancelling edit mode");
+    
+    // Hide edit mode, show view mode
+    document.getElementById('edit-edit-mode').classList.add('hidden');
+    document.getElementById('edit-view-mode').classList.remove('hidden');
+    
+    showNotification('Edit cancelled', 'info');
+}
+
+// Render service checkboxes in edit mode
+function renderEditServiceCheckboxes(selectedServiceIds = []) {
+    const container = document.getElementById('edit-service-checkbox-list');
+    if (!container) {
+        console.error("Edit service checkbox container not found");
+        return;
+    }
+
+    container.innerHTML = '';
+
+    // Group services by category
+    const categories = {};
+    services.forEach(service => {
+        let catName = service.category || "General Services";
+        if (!categories[catName]) categories[catName] = [];
+        categories[catName].push(service);
+    });
+
+    if (Object.keys(categories).length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 30px; color: var(--text-muted);">
+                <i class="fas fa-info-circle" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                <p>No services available</p>
+            </div>
+        `;
+        return;
+    }
+
+    // Render categories with services
+    Object.keys(categories).forEach(catName => {
+        const catBtn = document.createElement('button');
+        catBtn.className = 'category-toggle-btn';
+        catBtn.type = 'button';
+        catBtn.innerHTML = `<span>${catName}</span>`;
+
+        const tray = document.createElement('div');
+        tray.className = 'service-tray hidden';
+
+        catBtn.onclick = (e) => {
+            e.preventDefault();
+            const isActive = catBtn.classList.toggle('active');
+            tray.classList.toggle('hidden', !isActive);
+        };
+
+        categories[catName].forEach(service => {
+            const item = document.createElement('div');
+            item.className = 'checkbox-item';
+
+            const isChecked = selectedServiceIds.includes(service.id);
+
+            item.innerHTML = `
+                <input type="checkbox" value="${service.id}"
+                       data-name="${service.name}"
+                       data-price="${service.price}"
+                       data-dur="${service.duration}"
+                       data-category="${service.category || ''}"
+                       ${isChecked ? 'checked' : ''}>
+                <span>${service.name}</span>
+                <div class="price-tag">$${service.price}</div>
+            `;
+
+            item.onclick = (e) => {
+                const cb = item.querySelector('input');
+                if (e.target !== cb) {
+                    cb.checked = !cb.checked;
+                }
+                updateEditBookingTotal();
+            };
+
+            tray.appendChild(item);
+        });
+
+        container.appendChild(catBtn);
+        container.appendChild(tray);
+    });
+
+    // Update totals
+    updateEditBookingTotal();
+}
+
+// Update booking total in edit mode
+function updateEditBookingTotal() {
+    const checkboxes = document.querySelectorAll('#edit-service-checkbox-list input[type="checkbox"]:checked');
+    const summaryDiv = document.getElementById('edit-booking-summary');
+
+    if (!summaryDiv) return;
+
+    if (checkboxes.length > 0) {
+        let totalPrice = 0;
+        let totalDuration = 0;
+
+        checkboxes.forEach(cb => {
+            totalPrice += parseFloat(cb.dataset.price || 0);
+            totalDuration += parseInt(cb.dataset.dur || 30);
+        });
+
+        document.getElementById('edit-sum-duration').textContent = totalDuration;
+        document.getElementById('edit-sum-price').textContent = totalPrice;
+        summaryDiv.classList.remove('hidden');
+    } else {
+        summaryDiv.classList.add('hidden');
+    }
+}
+
+// Save edited appointment
+async function saveEditedAppointment() {
+    if (!window.currentEditingAppointment) {
+        showNotification('No appointment selected', 'danger');
+        return;
+    }
+
+    const appointmentId = window.currentEditingAppointment.firebaseId;
+    
+    // Get form values
+    const date = document.getElementById('edit-appointment-date').value;
+    const time24h = document.getElementById('edit-appointment-time').value;
+    const techName = document.getElementById('edit-appointment-tech').value;
+    
+    // Convert time to 12h format
+    const time12h = formatTimeFromInput(time24h);
+    
+    // Get selected services
+    const selectedServices = Array.from(document.querySelectorAll('#edit-service-checkbox-list input[type="checkbox"]:checked'));
+    
+    // Validate
+    if (!date || !time24h || !techName || selectedServices.length === 0) {
+        showNotification('Please fill all fields and select at least one service', 'warning');
+        return;
+    }
+
+    const selectedSpecialist = technicians.find(t => t.name === techName);
+
+    // Calculate totals
+    const totalDuration = selectedServices.reduce((sum, cb) => sum + parseInt(cb.dataset.dur || 30), 0);
+    const totalPrice = selectedServices.reduce((sum, cb) => sum + parseFloat(cb.dataset.price || 0), 0);
+
+    // Build update data
+    const updateData = {
+        date: date,
+        time: time12h,
+        tech: techName,
+        specialistId: selectedSpecialist ? (selectedSpecialist.userId || "") : "",
+        services: selectedServices.map(cb => cb.dataset.name),
+        serviceIds: selectedServices.map(cb => cb.value),
+        duration: totalDuration,
+        price: totalPrice,
+        updatedAt: new Date().toISOString()
+    };
+
+    console.log("Updating appointment with data:", updateData);
+
+    try {
+        const apptRef = window.dbRef(window.db, `appointments/${appointmentId}`);
+        await window.dbUpdate(apptRef, updateData);
+        
+        showNotification('Appointment updated successfully!', 'success');
+        closeEditAppointmentModal();
+        renderAdminScheduler();
+    } catch (error) {
+        console.error("Update appointment error:", error);
+        showNotification('Failed to update appointment', 'danger');
+    }
+}
+
+// Helper to format time from 24h input to 12h display
+function formatTimeFromInput(time24) {
+    if (!time24) return '';
+
+    const [hours, minutes] = time24.split(':');
+    let hour = parseInt(hours);
+    const modifier = hour >= 12 ? 'PM' : 'AM';
+
+    if (hour === 0) {
+        hour = 12;
+    } else if (hour > 12) {
+        hour = hour - 12;
+    }
+
+    return `${hour}:${minutes} ${modifier}`;
+}
+
+console.log("Edit appointment fixes loaded successfully!");
