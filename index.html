@@ -185,6 +185,17 @@
                         <h3 class="step-label">Pick Your Time Slot</h3>
                     </div>
 
+                    <!-- ADD THIS AFTER TIME SLOTS -->
+<div class="form-label" style="margin-top: 20px;">
+    <i class="fas fa-comment"></i> Additional Notes (Optional)
+</div>
+<textarea id="booking-comments" 
+          placeholder="Any special requests or notes for your appointment..." 
+          style="width: 100%; padding: 12px; border: 1.4px solid rgba(188, 148, 127, 0.2); 
+                 border-radius: 11.2px; font-family: 'Montserrat', sans-serif; 
+                 font-size: 0.665rem; min-height: 80px; resize: vertical;">
+</textarea>
+
                     <div id="booking-summary" class="summary-box hidden">
                         <h4>
                             <i class="fas fa-clipboard-list"></i>
@@ -663,29 +674,65 @@
         </div>
     </div>
 
-    <!-- EDIT APPOINTMENT MODAL -->
-    <div id="edit-appointment-modal" class="modal">
-        <div class="modal-backdrop" onclick="closeEditAppointmentModal()"></div>
-        <div class="modal-content" style="max-width: 500px;">
-            <h3>Appointment Details</h3>
-            <p style="margin-bottom: 20px; color: var(--text-muted);">View and manage appointment</p>
-            
-            <div class="appointment-details-view" id="edit-appointment-details">
-                <!-- Details will be populated by JavaScript -->
-            </div>
-
-            <div style="display: flex; gap: 10px; margin-top: 20px;">
-                <button class="btn-primary" style="flex: 1; background: var(--danger);" onclick="deleteAppointmentFromModal()">
-                    <i class="fas fa-trash"></i>
-                    <span>Cancel Appointment</span>
+<div id="edit-appointment-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2><i class="fas fa-edit"></i> Appointment Details</h2>
+            <button class="close-modal-btn" onclick="closeEditAppointmentModal()">×</button>
+        </div>
+        
+        <!-- View Mode -->
+        <div id="edit-view-mode">
+            <div id="edit-appointment-details"></div>
+            <div class="modal-actions" style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn-primary" onclick="switchToEditMode()" style="flex: 1;">
+                    <i class="fas fa-edit"></i> Edit Appointment
                 </button>
-                <button class="btn-primary" style="flex: 1;" onclick="closeEditAppointmentModal()">
-                    <i class="fas fa-times"></i>
-                    <span>Close</span>
+                <button class="btn-danger" onclick="deleteAppointmentFromModal()" style="flex: 1;">
+                    <i class="fas fa-trash"></i> Cancel Appointment
+                </button>
+            </div>
+        </div>
+        
+        <!-- Edit Mode -->
+        <div id="edit-edit-mode" class="hidden">
+            <div class="form-group">
+                <label><i class="fas fa-calendar"></i> Date</label>
+                <input type="date" id="edit-appointment-date" class="form-input">
+            </div>
+            
+            <div class="form-group">
+                <label><i class="fas fa-clock"></i> Time</label>
+                <input type="time" id="edit-appointment-time" class="form-input">
+            </div>
+            
+            <div class="form-group">
+                <label><i class="fas fa-user-tie"></i> Specialist</label>
+                <select id="edit-appointment-tech" class="form-input"></select>
+            </div>
+            
+            <div class="form-group">
+                <label><i class="fas fa-concierge-bell"></i> Services</label>
+                <div id="edit-service-checkbox-list"></div>
+            </div>
+            
+            <div id="edit-booking-summary" class="hidden" style="padding: 15px; background: var(--light-bg); border-radius: 10px; margin-top: 15px;">
+                <h4>Updated Summary</h4>
+                <p><strong>Duration:</strong> <span id="edit-sum-duration">0</span> minutes</p>
+                <p><strong>Price:</strong> $<span id="edit-sum-price">0</span></p>
+            </div>
+            
+            <div class="modal-actions" style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn-primary" onclick="saveEditedAppointment()" style="flex: 1;">
+                    <i class="fas fa-save"></i> Save Changes
+                </button>
+                <button class="btn-secondary" onclick="cancelEditMode()" style="flex: 1;">
+                    <i class="fas fa-times"></i> Cancel
                 </button>
             </div>
         </div>
     </div>
+</div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
