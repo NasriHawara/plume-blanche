@@ -2220,3 +2220,325 @@
             min-width: auto;
         }
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    /* ==========================================
+   EDIT APPOINTMENT MODAL STYLES
+   ========================================== */
+
+#edit-appointment-modal .modal-content {
+    max-width: 700px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+/* View Mode Styles */
+#edit-view-mode {
+    animation: fadeIn 0.3s ease;
+}
+
+#edit-appointment-details {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    background: var(--light-bg, #f8f9fa);
+    border-radius: 8px;
+    border-left: 3px solid var(--primary, #8E6D5A);
+}
+
+.detail-row strong {
+    color: var(--primary-dark, #264653);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 140px;
+}
+
+.detail-row strong i {
+    width: 20px;
+    text-align: center;
+    color: var(--primary, #8E6D5A);
+}
+
+.detail-row span {
+    color: var(--text-dark, #333);
+    text-align: right;
+    flex: 1;
+}
+
+/* Edit Mode Styles */
+#edit-edit-mode {
+    animation: fadeIn 0.3s ease;
+}
+
+#edit-edit-mode .form-group {
+    margin-bottom: 20px;
+}
+
+#edit-edit-mode .form-group label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: var(--primary-dark, #264653);
+    font-size: 0.95rem;
+}
+
+#edit-edit-mode .form-group label i {
+    color: var(--primary, #8E6D5A);
+    width: 20px;
+    text-align: center;
+}
+
+#edit-edit-mode .form-input {
+    width: 100%;
+    padding: 12px 15px;
+    border: 2px solid #E9ECEF;
+    border-radius: 10px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    background: white;
+    color: var(--text-dark, #333);
+}
+
+#edit-edit-mode .form-input:focus {
+    outline: none;
+    border-color: var(--primary, #8E6D5A);
+    box-shadow: 0 0 0 3px rgba(42, 157, 143, 0.1);
+}
+
+/* Make sure select dropdown is visible */
+#edit-appointment-tech {
+    appearance: auto;
+    -webkit-appearance: menulist;
+    -moz-appearance: menulist;
+    cursor: pointer;
+    background-color: white !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 35px !important;
+}
+
+#edit-appointment-tech option {
+    padding: 10px;
+    background: white;
+    color: #333;
+}
+
+/* Service checkboxes in edit mode */
+#edit-service-checkbox-list {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 2px solid #E9ECEF;
+    border-radius: 10px;
+    padding: 10px;
+    background: white;
+}
+
+#edit-service-checkbox-list .category-toggle-btn {
+    width: 100%;
+    padding: 12px 15px;
+    background: var(--light-bg, #f8f9fa);
+    border: none;
+    border-radius: 8px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--primary-dark, #264653);
+    cursor: pointer;
+    margin-bottom: 8px;
+    transition: all 0.2s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#edit-service-checkbox-list .category-toggle-btn:hover {
+    background: #e9ecef;
+}
+
+#edit-service-checkbox-list .category-toggle-btn.active {
+    background: var(--primary, #8E6D5A);
+    color: white;
+}
+
+#edit-service-checkbox-list .service-tray {
+    padding-left: 15px;
+    margin-bottom: 10px;
+}
+
+#edit-service-checkbox-list .checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: white;
+    border-radius: 6px;
+    margin-bottom: 5px;
+    border: 1px solid #E9ECEF;
+    transition: all 0.2s ease;
+}
+
+#edit-service-checkbox-list .checkbox-item:hover {
+    background: #f8f9fa;
+    border-color: var(--primary, #8E6D5A);
+}
+
+#edit-service-checkbox-list .checkbox-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+/* Edit booking summary */
+#edit-booking-summary {
+    padding: 15px;
+    background: var(--light-bg, #f8f9fa);
+    border-radius: 10px;
+    border-left: 4px solid var(--primary, #8E6D5A);
+    margin-top: 15px;
+}
+
+#edit-booking-summary h4 {
+    margin: 0 0 10px 0;
+    color: var(--primary-dark, #264653);
+    font-size: 1.1rem;
+}
+
+#edit-booking-summary p {
+    margin: 5px 0;
+    color: var(--text-dark, #333);
+}
+
+/* Modal action buttons */
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.modal-actions button {
+    flex: 1;
+    padding: 14px 20px;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn-primary {
+    background: var(--primary, #8E6D5A);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #248277;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(42, 157, 143, 0.3);
+}
+
+.btn-secondary {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #5a6268;
+    transform: translateY(-2px);
+}
+
+.btn-danger {
+    background: #E76F51;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #d65a3f;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(231, 111, 81, 0.3);
+}
+
+/* Hidden class */
+.hidden {
+    display: none !important;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideOutRight {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(100px);
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    #edit-appointment-modal .modal-content {
+        max-width: 95%;
+        margin: 20px auto;
+    }
+    
+    .detail-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .detail-row span {
+        text-align: left;
+    }
+    
+    .modal-actions {
+        flex-direction: column;
+    }
+    
+    .modal-actions button {
+        width: 100%;
+    }
+}
