@@ -19,6 +19,7 @@ let currentClientFilter = 'upcoming';
 let currentEditingStaff = null;
 let adminBookingContext = null;
 let allUsers = [];
+let adminSelectedServiceIds = [];
 
 const datePicker = document.getElementById('date-picker');
 const detailsForm = document.getElementById('details-form');
@@ -1007,7 +1008,10 @@ function renderAdminInbox() {
     }
 }
 
-// FIX: Updated renderAdminScheduler with proper filtering and rendering
+
+
+
+
 function renderAdminScheduler() {
     const grid = document.getElementById('scheduler-grid');
     if (!grid) return;
@@ -1038,8 +1042,7 @@ function renderAdminScheduler() {
     }
 
     grid.innerHTML = '';
-    // FIX BUG #5: Use fixed width columns instead of flexible 1fr to prevent stretching
-    const columnWidth = '200px'; // Fixed width for each technician column
+    const columnWidth = '200px';
     grid.style.gridTemplateColumns = `90px repeat(${techsToShow.length}, ${columnWidth})`;
 
     const headerTime = document.createElement('div');
@@ -1054,15 +1057,22 @@ function renderAdminScheduler() {
         grid.appendChild(h);
     });
 
-    const totalSlots = ((APP_SETTINGS.closingTime - APP_SETTINGS.openingTime) * 60) / 15;
+    // Admin-specific settings: 9 AM - 9 PM with 10-minute intervals
+    const ADMIN_OPENING_TIME = 9;
+    const ADMIN_CLOSING_TIME = 21;
+    const INTERVAL_MINUTES = 5;
+    
+    // Calculate total slots with 10-minute intervals
+    const totalSlots = ((ADMIN_CLOSING_TIME - ADMIN_OPENING_TIME) * 60) / INTERVAL_MINUTES;
 
+    // Render time grid with 10-minute intervals
     for (let i = 0; i <= totalSlots; i++) {
-        let mins = (APP_SETTINGS.openingTime * 60) + (i * 15);
-let timeLabel = formatMinsToTime(mins);  // NOW SHOWS ALL TIMES
-let timeStr = formatMinsToTime(mins);
+        let mins = (ADMIN_OPENING_TIME * 60) + (i * INTERVAL_MINUTES);
+        let timeLabel = formatMinsToTime(mins);
+        let timeStr = formatMinsToTime(mins);
 
-const lbl = document.createElement('div');
-lbl.className = (mins % 60 === 0) ? 'time-label' : 'time-label time-label-small';  // Different style for :15, :30, :45
+        const lbl = document.createElement('div');
+        lbl.className = (mins % 60 === 0) ? 'time-label' : 'time-label time-label-small';
         lbl.style.gridRow = i + 2;
         lbl.innerText = timeLabel;
         grid.appendChild(lbl);
@@ -1078,14 +1088,13 @@ lbl.className = (mins % 60 === 0) ? 'time-label' : 'time-label time-label-small'
         });
     }
 
-    // FIX: Improved appointment filtering logic
+    // Render appointments
     mockAppointments.forEach(appt => {
         if (appt.status !== 'confirmed') return;
 
         const matchesDate = !dateVal || appt.date === dateVal;
         const matchesTech = techVal === 'all' || appt.tech === techVal;
         
-        // FIX: Proper category filtering - check if ANY of the appointment's services match the category
         let matchesCategory = categoryVal === 'all';
         if (!matchesCategory && appt.serviceIds && Array.isArray(appt.serviceIds)) {
             matchesCategory = appt.serviceIds.some(serviceId => {
@@ -1098,19 +1107,28 @@ lbl.className = (mins % 60 === 0) ? 'time-label' : 'time-label time-label-small'
             const colIndex = techsToShow.findIndex(t => t.name === appt.tech);
             if (colIndex === -1) return;
 
-            const startMins = timeToMins(appt.time) - (APP_SETTINGS.openingTime * 60);
-            const startRow = (startMins / 15) + 2;
-            const rowSpan = Math.ceil(appt.duration / 15);
+            // Get appointment time in minutes
+            const apptTimeMins = timeToMins(appt.time);
+            const adminStartMins = ADMIN_OPENING_TIME * 60;
+            const adminEndMins = ADMIN_CLOSING_TIME * 60;
+            
+            // Only show appointments within 9 AM - 9 PM range
+            if (apptTimeMins < adminStartMins || apptTimeMins >= adminEndMins) {
+                return;
+            }
+
+            // Calculate position using 10-minute intervals
+            const startMins = apptTimeMins - adminStartMins;
+            const startRow = (startMins / INTERVAL_MINUTES) + 2;
+            const rowSpan = Math.ceil(appt.duration / INTERVAL_MINUTES);
 
             const apptEl = document.createElement('div');
             apptEl.className = 'booking-block';
             apptEl.style.gridColumn = colIndex + 2;
             apptEl.style.gridRow = `${startRow} / span ${rowSpan}`;
-            apptEl.style.cursor = 'pointer';  // FIX BUG #4: Make it clear the block is clickable
+            apptEl.style.cursor = 'pointer';
             
-            // FIX BUG #4: Add onclick to open edit modal
             apptEl.onclick = (e) => {
-                // Don't trigger if clicking the cancel button
                 if (e.target.classList.contains('cancel-appt-btn')) {
                     return;
                 }
@@ -1166,7 +1184,7 @@ function updateAdminFilterDropdowns() {
 function openAdminBookingModal(presetDate, presetTime, presetTech) {
     const modal = document.getElementById('admin-booking-modal');
     modal.classList.add('active');
-
+    adminSelectedServices = [];
     // Store context for later use
     adminBookingContext = { presetDate, presetTime, presetTech };
 
@@ -1207,6 +1225,12 @@ function closeAdminBookingModal() {
 function renderAdminBookingServices(searchTerm = '') {
     const container = document.getElementById('admin-service-checkbox-list');
     if (!container) return;
+
+
+    // --- NEW: Capture currently selected IDs before clearing ---
+    const currentlySelected = Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+        .map(cb => cb.value);
+
 
     container.innerHTML = '';
 
@@ -1257,6 +1281,11 @@ function renderAdminBookingServices(searchTerm = '') {
         }
 
         categories[catName].forEach(service => {
+
+
+            const isChecked = currentlySelected.includes(service.id.toString()) ? 'checked' : '';
+           
+           
             const item = document.createElement('div');
             item.className = 'checkbox-item';
             item.innerHTML = `
@@ -1288,19 +1317,40 @@ function searchAdminServices() {
 
 // FIX: Generate 15-minute time slots for admin booking
 function updateAdminBookingTotal() {
-    const checkboxes = document.querySelectorAll('#admin-service-checkbox-list input[type="checkbox"]:checked');
+    const container = document.getElementById('admin-service-checkbox-list');
     const detailsDiv = document.getElementById('admin-booking-details');
     const timeSlotsContainer = document.getElementById('admin-time-slots');
 
-    if (checkboxes.length > 0) {
+    // 1. Sync visible checkboxes with our persistent array
+    const visibleCheckboxes = container.querySelectorAll('input[type="checkbox"]');
+    visibleCheckboxes.forEach(cb => {
+        const serviceId = cb.value;
+        const isCurrentlyTracked = adminSelectedServices.some(s => s.id == serviceId);
+
+        if (cb.checked && !isCurrentlyTracked) {
+            // Add to persistent list if checked but not there yet
+            adminSelectedServices.push({
+                id: serviceId,
+                name: cb.dataset.name,
+                price: parseFloat(cb.dataset.price),
+                dur: parseInt(cb.dataset.dur)
+            });
+        } else if (!cb.checked && isCurrentlyTracked) {
+            // Remove from persistent list if user unchecked it
+            adminSelectedServices = adminSelectedServices.filter(s => s.id != serviceId);
+        }
+    });
+
+    // 2. Calculate totals from the persistent list (includes "hidden" searches)
+    if (adminSelectedServices.length > 0) {
         let total = 0;
         let totalDuration = 0;
         let serviceNames = [];
 
-        checkboxes.forEach(cb => {
-            total += parseFloat(cb.dataset.price);
-            totalDuration += parseInt(cb.dataset.dur);
-            serviceNames.push(cb.dataset.name);
+        adminSelectedServices.forEach(service => {
+            total += service.price;
+            totalDuration += service.dur;
+            serviceNames.push(service.name);
         });
 
         detailsDiv.innerHTML = `
@@ -1311,7 +1361,7 @@ function updateAdminBookingTotal() {
         `;
         detailsDiv.classList.remove('hidden');
 
-        // FIX: Generate 15min time slots like client booking
+        // Generate time slots based on the cumulative duration
         generateAdminTimeSlots(totalDuration);
     } else {
         detailsDiv.classList.add('hidden');
@@ -1383,12 +1433,15 @@ async function confirmAdminBooking() {
     
     const date = document.getElementById('admin-booking-date').value;
     const techName = document.getElementById('admin-booking-tech').value;
-    const selectedServices = Array.from(document.querySelectorAll('#admin-service-checkbox-list input[type="checkbox"]:checked'));
     
-    if (!date || !techName || selectedServices.length === 0) {
-        showNotification('Please fill all required fields', 'warning');
+    // --- FIX: Use the persistent array instead of checking the DOM ---
+    if (!date || !techName || adminSelectedServices.length === 0) {
+        showNotification('Please fill all required fields and select services', 'warning');
         return;
     }
+
+
+
     
     const selectedTimeSlot = document.querySelector('#admin-time-slots .time-slot.selected');
     if (!selectedTimeSlot) {
@@ -1461,12 +1514,12 @@ async function confirmAdminBooking() {
             email: finalClientData.email,
             userId: finalClientData.uid,
             specialistId: selectedSpecialist ? (selectedSpecialist.userId || "") : "",
-            services: selectedServices.map(cb => cb.dataset.name),
-            serviceIds: selectedServices.map(cb => cb.value),
+services: adminSelectedServices.map(s => s.name),
+            serviceIds: adminSelectedServices.map(s => s.id),
             tech: techName,
             time: selectedTimeSlot.innerText,
-            duration: selectedServices.reduce((sum, cb) => sum + parseInt(cb.dataset.dur || 30), 0),
-            price: selectedServices.reduce((sum, cb) => sum + parseFloat(cb.dataset.price || 0), 0),
+duration: adminSelectedServices.reduce((sum, s) => sum + s.dur, 0),
+            price: adminSelectedServices.reduce((sum, s) => sum + s.price, 0),
             date: date,
             status: 'confirmed',
             createdAt: new Date().toISOString(),
@@ -1478,8 +1531,11 @@ async function confirmAdminBooking() {
         await window.dbSet(newApptRef, bookingData);
         
         showNotification('Appointment created successfully for ' + finalClientData.name, 'success');
+       
+       adminSelectedServices = [];
         closeAdminBookingModal();
         renderAdminScheduler();
+        
         
         window.selectedClientForBooking = null;
     } catch (error) {
