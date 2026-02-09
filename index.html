@@ -56,7 +56,11 @@
                 <div id="signup-extra" class="hidden">
                     <div class="input-group">
                         <i class="fas fa-user"></i>
-                        <input type="text" id="fullname" placeholder="Full Name">
+                        <input type="text" id="firstname" placeholder="First Name" required>
+                    </div>
+                    <div class="input-group">
+                        <i class="fas fa-user"></i>
+                        <input type="text" id="lastname" placeholder="Last Name" required>
                     </div>
                     <div class="input-group">
                         <i class="fas fa-phone"></i>
@@ -733,6 +737,36 @@
         </div>
     </div>
 </div>
+
+
+
+
+<!-- Admin Password Modal for Adding Staff -->
+<div id="admin-password-modal" class="modal">
+    <div class="modal-backdrop" onclick="closeAdminPasswordModal()"></div>
+    <div class="modal-content">
+        <div class="success-icon" style="background: var(--gradient-primary);">
+            <i class="fas fa-shield-alt"></i>
+        </div>
+        <h3>Admin Verification</h3>
+        <p>Please enter your password to confirm adding staff member</p>
+        <div class="input-group">
+            <i class="fas fa-key"></i>
+            <input type="password" id="admin-password-input" placeholder="Your Admin Password" onkeypress="if(event.key === 'Enter') confirmAddStaff()">
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+            <button class="btn-primary" onclick="confirmAddStaff()">
+                <span>Confirm</span>
+                <i class="fas fa-check"></i>
+            </button>
+            <button class="btn-primary" onclick="closeAdminPasswordModal()" style="background: #6c757d;">
+                <span>Cancel</span>
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
