@@ -2543,3 +2543,56 @@
     }
 }
 
+
+
+
+
+/* FIX FOR SERVICE SECTION OVERFLOW */
+
+/* Prevent horizontal overflow in checkbox group */
+.checkbox-group {
+    overflow-x: hidden; /* ADD THIS */
+}
+
+/* Ensure checkbox items don't cause overflow */
+.checkbox-item {
+    overflow: hidden; /* ADD THIS */
+    max-width: 100%; /* ADD THIS */
+}
+
+/* Fix service name to wrap properly */
+.checkbox-item span {
+    word-wrap: break-word; /* ADD THIS */
+    overflow-wrap: break-word; /* ADD THIS */
+    max-width: calc(100% - 120px); /* ADD THIS - leaves space for checkbox and price */
+}
+
+/* Ensure price tag stays in place */
+.checkbox-item .price-tag {
+    white-space: nowrap; /* ADD THIS */
+    flex-shrink: 0; /* ADD THIS - prevents price from shrinking */
+}
+
+/* Fix service tray overflow */
+.service-tray {
+    overflow-x: hidden; /* ADD THIS */
+    max-width: 100%; /* ADD THIS */
+}
+
+/* Additional mobile-specific fix */
+@media (max-width: 768px) {
+    .checkbox-item {
+        padding: 8px;
+        flex-wrap: nowrap; /* Ensure items stay in one row */
+    }
+    
+    .checkbox-item span {
+        font-size: 0.6rem;
+        max-width: calc(100% - 100px); /* Adjust for smaller screens */
+    }
+    
+    .checkbox-item .price-tag {
+        font-size: 0.65rem;
+        padding: 3px 7px;
+    }
+}
