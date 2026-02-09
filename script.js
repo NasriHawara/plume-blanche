@@ -293,7 +293,9 @@ if (document.getElementById('toggle-text')) {
 authBtn.onclick = async () => {
     const email = document.getElementById('email').value.trim().toLowerCase();
     const password = document.getElementById('password').value;
-    const name = document.getElementById('fullname')?.value?.trim() || "";
+const firstName = document.getElementById('firstname')?.value?.trim() || "";
+const lastName = document.getElementById('lastname')?.value?.trim() || "";
+const name = `${firstName} ${lastName}`.trim(); // Combine them
     const phone = document.getElementById('phone')?.value?.trim() || "";
     const dob = document.getElementById('dob')?.value || "";
 
@@ -302,10 +304,10 @@ authBtn.onclick = async () => {
         return;
     }
 
-    if (!isLoggingIn && (!name || !phone)) {
-        showNotification('Please enter your name and phone number for signup', 'warning');
-        return;
-    }
+if (!isLoggingIn && (!firstName || !lastName || !phone)) {
+    showNotification('Please enter your first name, last name and phone number for signup', 'warning');
+    return;
+}
 
     try {
         if (isLoggingIn) {
@@ -1670,46 +1672,78 @@ async function addStaff() {
         showNotification('Please fill all fields including password', 'warning');
         return;
     }
-      // Store admin credentials to re-authenticate after creating new user
-    const adminEmail = currentUser.email;
-    const adminPassword = prompt('Please enter your admin password to confirm:');
+    
+    // Store data globally so the modal can access it
+    window.pendingStaffData = {
+        name: name,
+        email: email,
+        phone: phone,
+        password: password,
+        role: role,
+        adminEmail: currentUser.email
+    };
+    
+    // Open the password modal instead of prompt
+    document.getElementById('admin-password-modal').classList.add('active');
+    document.getElementById('admin-password-input').value = '';
+    
+    // Auto-focus on password field for better UX
+    setTimeout(() => {
+        document.getElementById('admin-password-input').focus();
+    }, 100);
+}
+
+
+// Function to confirm and process staff addition
+async function confirmAddStaff() {
+    const adminPassword = document.getElementById('admin-password-input').value.trim();
     
     if (!adminPassword) {
-        showNotification('Admin password required to add staff', 'warning');
+        showNotification('Please enter your admin password', 'warning');
         return;
     }
+    
+    const data = window.pendingStaffData;
+    if (!data) {
+        showNotification('No pending staff data found', 'danger');
+        return;
+    }
+    
     try {
-        const userCredential = await window.createUserWithEmailAndPassword(window.auth, email, password);
+        // Create the new user account
+        const userCredential = await window.createUserWithEmailAndPassword(window.auth, data.email, data.password);
         const newUserId = userCredential.user.uid;
+        
+        // Immediately sign back in as admin to restore admin context
+        await window.signInWithEmailAndPassword(window.auth, data.adminEmail, adminPassword);
+        
+        // Prepare user data
         const userData = {
-            email: email,
-            name: name,
-            phone: phone,
-            role: role,
+            email: data.email,
+            name: data.name,
+            phone: data.phone,
+            role: data.role,
             createdAt: new Date().toISOString()
         };
 
-
         const staffData = {
-            name: name,
-            email: email,
-            phone: phone,
+            name: data.name,
+            email: data.email,
+            phone: data.phone,
             userId: newUserId,
             skills: [],
             createdAt: new Date().toISOString()
         };
 
-             // Immediately sign back in as admin to restore admin context
-        await window.signInWithEmailAndPassword(window.auth, adminEmail, adminPassword);
-
-        // Now write data with admin privileges
+        // Save to database
         const userRef = window.dbRef(window.db, `users/${newUserId}`);
         await window.dbSet(userRef, userData);
 
-                const techRef = window.dbRef(window.db, 'technicians');
-                const newTechRef = window.dbPush(techRef);
-                await window.dbSet(newTechRef, staffData);
+        const techRef = window.dbRef(window.db, 'technicians');
+        const newTechRef = window.dbPush(techRef);
+        await window.dbSet(newTechRef, staffData);
 
+        // Clear the form
         document.getElementById('new-staff-name').value = '';
         document.getElementById('new-staff-email').value = '';
         document.getElementById('new-staff-phone').value = '';
@@ -1717,20 +1751,31 @@ async function addStaff() {
 
         showNotification('Staff member added with account created!', 'success');
         
-        // FIX: Force refresh of scheduler to show new staff column
+        // Close the modal
+        closeAdminPasswordModal();
+        
+        // Refresh scheduler
         setTimeout(() => {
             renderAdminScheduler();
         }, 500);
+        
     } catch (error) {
         console.error("Add staff error:", error);
         if (error.code === 'auth/email-already-in-use') {
             showNotification('Email already in use', 'danger');
-                    } else if (error.code === 'auth/wrong-password') {
+        } else if (error.code === 'auth/wrong-password') {
             showNotification('Incorrect admin password', 'danger');
         } else {
             showNotification('Failed to add staff: ' + error.message, 'danger');
         }
     }
+}
+
+// Function to close the password modal
+function closeAdminPasswordModal() {
+    document.getElementById('admin-password-modal').classList.remove('active');
+    document.getElementById('admin-password-input').value = '';
+    window.pendingStaffData = null;
 }
 
 async function deleteStaff(staffId) {
