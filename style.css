@@ -495,111 +495,140 @@
         font-weight: 600;
     }
 
-    /* SERVICE SELECTION */
-    .checkbox-group {
-        text-align: left;
-        margin-bottom: 21px;
-        max-height: 280px;
-        overflow-y: auto;
-        padding-right: 7px;
-    }
+/* --- SERVICE SELECTION --- */
+.checkbox-group {
+    text-align: left;
+    margin-bottom: 21px;
+    max-height: 280px;
+    overflow-y: auto;
+    overflow-x: hidden; /* Prevents horizontal scroll */
+    padding-right: 7px;
+}
 
-    .category-toggle-btn {
-        width: 100%;
-        padding: 14px 16.8px;
-        background: rgba(255, 255, 255, 0.95);
-        border: 1.4px solid rgba(188, 148, 127, 0.25);
-        border-radius: 12.6px;
-        text-align: left;
-        font-family: 'Playfair Display', serif;
-        font-size: 0.91rem;
-        color: var(--text-dark);
-        cursor: pointer;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        box-shadow: 0 2.8px 8.4px var(--shadow-soft);
-        margin-bottom: 8.4px;
-        font-weight: 600;
-    }
+.category-toggle-btn {
+    width: 100%;
+    padding: 14px 16.8px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1.4px solid rgba(188, 148, 127, 0.25);
+    border-radius: 12.6px;
+    text-align: left;
+    font-family: 'Playfair Display', serif;
+    font-size: 0.91rem;
+    color: var(--text-dark);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2.8px 8.4px var(--shadow-soft);
+    margin-bottom: 8.4px;
+    font-weight: 600;
+}
 
-    .category-toggle-btn:hover {
-        background: var(--gradient-soft);
-        transform: none;
-        border-color: var(--primary-tan);
-    }
+.category-toggle-btn:hover {
+    background: var(--gradient-soft);
+    transform: none;
+    border-color: var(--primary-tan);
+}
 
-    .category-toggle-btn.active {
-        background: var(--gradient-soft);
-        border-color: var(--primary-tan);
-        color: var(--primary-dark);
-    }
+.category-toggle-btn.active {
+    background: var(--gradient-soft);
+    border-color: var(--primary-tan);
+    color: var(--primary-dark);
+}
 
-    .category-toggle-btn::after {
-        content: '\f067';
-        font-family: 'Font Awesome 6 Free';
-        font-weight: 900;
-        font-size: 0.7rem;
-        color: var(--primary-tan);
-    }
+.category-toggle-btn::after {
+    content: '\f067';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    font-size: 0.7rem;
+    color: var(--primary-tan);
+}
 
-    .category-toggle-btn.active::after {
-        content: '\f068';
-        transform: none;
-    }
+.category-toggle-btn.active::after {
+    content: '\f068';
+    transform: none;
+}
 
-    .service-tray {
-        padding: 12.6px;
-        margin-top: -5.6px;
-        margin-bottom: 12.6px;
-        background: rgba(255, 255, 255, 0.85);
-        border: 1.4px solid rgba(188, 148, 127, 0.15);
-        border-top: none;
-        border-radius: 0 0 12.6px 12.6px;
-    }
+.service-tray {
+    padding: 12.6px;
+    margin-top: -5.6px;
+    margin-bottom: 12.6px;
+    background: rgba(255, 255, 255, 0.85);
+    border: 1.4px solid rgba(188, 148, 127, 0.15);
+    border-top: none;
+    border-radius: 0 0 12.6px 12.6px;
+    overflow-x: hidden; /* Prevent tray overflow */
+}
 
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 11.2px;
+    margin-bottom: 8.4px;
+    border: 1.4px solid rgba(188, 148, 127, 0.15);
+    border-radius: 9.8px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.6);
+    overflow: hidden; /* Keep everything contained */
+}
+
+.checkbox-item:hover {
+    background: rgba(188, 148, 127, 0.1);
+    transform: none;
+    border-color: var(--primary-tan);
+}
+
+.checkbox-item input[type="checkbox"] {
+    flex-shrink: 0; /* Prevents checkbox from squishing */
+    width: 15.4px;
+    height: 15.4px;
+    margin: 0 12.6px 0 0;
+    accent-color: var(--primary-tan);
+    cursor: pointer;
+    padding: 0;
+    border-radius: 4.2px;
+}
+
+.checkbox-item span {
+    flex: 1;              /* Grow to fill all available space */
+    min-width: 0;         /* Allows text to wrap instead of overflowing */
+    font-size: 0.75rem;   /* Adjusted for readability */
+    color: var(--text-dark);
+    font-weight: 500;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    margin-right: 10px;   /* Gap before the price */
+}
+
+.checkbox-item .price-tag {
+    flex-shrink: 0;       /* Keeps price visible and full size */
+    white-space: nowrap;  /* Prevents price from splitting lines */
+    font-weight: 700;
+    color: var(--primary-dark);
+    font-size: 0.7rem;
+    background: rgba(188, 148, 127, 0.15);
+    padding: 4.2px 9.8px;
+    border-radius: 14px;
+}
+
+/* --- RESPONSIVE ADJUSTMENTS --- */
+@media (max-width: 768px) {
     .checkbox-item {
-        display: flex;
-        align-items: center;
-        padding: 11.2px;
-        margin-bottom: 8.4px;
-        border: 1.4px solid rgba(188, 148, 127, 0.15);
-        border-radius: 9.8px;
-        cursor: pointer;
-        background: rgba(255, 255, 255, 0.6);
+        padding: 8px;
     }
-
-    .checkbox-item:hover {
-        background: rgba(188, 148, 127, 0.1);
-        transform: none;
-        border-color: var(--primary-tan);
-    }
-
-    .checkbox-item input[type=\"checkbox\"] {
-        width: 15.4px;
-        height: 15.4px;
-        margin: 0 12.6px 0 0;
-        accent-color: var(--primary-tan);
-        cursor: pointer;
-        padding: 0;
-        border-radius: 4.2px;
-    }
-
+    
     .checkbox-item span {
-        font-size: 0.665rem;
-        flex-grow: 1;
-        color: var(--text-dark);
-        font-weight: 500;
-    }
-
-    .checkbox-item .price-tag {
-        font-weight: 700;
-        color: var(--primary-dark);
         font-size: 0.7rem;
-        background: rgba(188, 148, 127, 0.15);
-        padding: 4.2px 9.8px;
-        border-radius: 14px;
     }
+    
+    .checkbox-item .price-tag {
+        font-size: 0.65rem;
+        padding: 3px 7px;
+    }
+}
 
     /* SUMMARY BOX */
     .summary-box {
@@ -2545,54 +2574,3 @@
 
 
 
-
-
-/* FIX FOR SERVICE SECTION OVERFLOW */
-
-/* Prevent horizontal overflow in checkbox group */
-.checkbox-group {
-    overflow-x: hidden; /* ADD THIS */
-}
-
-/* Ensure checkbox items don't cause overflow */
-.checkbox-item {
-    overflow: hidden; /* ADD THIS */
-    max-width: 100%; /* ADD THIS */
-}
-
-/* Fix service name to wrap properly */
-.checkbox-item span {
-    word-wrap: break-word; /* ADD THIS */
-    overflow-wrap: break-word; /* ADD THIS */
-    max-width: calc(100% - 120px); /* ADD THIS - leaves space for checkbox and price */
-}
-
-/* Ensure price tag stays in place */
-.checkbox-item .price-tag {
-    white-space: nowrap; /* ADD THIS */
-    flex-shrink: 0; /* ADD THIS - prevents price from shrinking */
-}
-
-/* Fix service tray overflow */
-.service-tray {
-    overflow-x: hidden; /* ADD THIS */
-    max-width: 100%; /* ADD THIS */
-}
-
-/* Additional mobile-specific fix */
-@media (max-width: 768px) {
-    .checkbox-item {
-        padding: 8px;
-        flex-wrap: nowrap; /* Ensure items stay in one row */
-    }
-    
-    .checkbox-item span {
-        font-size: 0.6rem;
-        max-width: calc(100% - 100px); /* Adjust for smaller screens */
-    }
-    
-    .checkbox-item .price-tag {
-        font-size: 0.65rem;
-        padding: 3px 7px;
-    }
-}
