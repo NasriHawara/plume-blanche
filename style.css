@@ -1,4 +1,4 @@
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Cormorant+Garamond:wght@300;400;500;600&family=Montserrat:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Cormorant+Garamond:wght@300;400;500;600&family=Montserrat:wght@300;400;500;600;700&display=swap');
 
     :root {
         --primary-tan: #BC947F;
@@ -2034,8 +2034,9 @@
     /* CLIENT SEARCH IN ADMIN BOOKING MODAL */
     .input-with-search {
         display: flex;
-        gap: 5.6px;
+        gap: 10px;
         align-items: center;
+        position: relative;
     }
 
     .input-with-search .input-group {
@@ -2046,15 +2047,15 @@
     .btn-search {
         background: var(--primary-tan);
         border: none;
-        padding: 7.7px 11.9px;
-        border-radius: 7.7px;
+        padding: 12px 18px;
+        border-radius: 10px;
         color: var(--white);
         font-weight: 600;
         cursor: pointer;
         display: flex;
         align-items: center;
-        gap: 4.2px;
-        font-size: 0.441rem;
+        gap: 8px;
+        font-size: 0.875rem;
         white-space: nowrap;
     }
 
@@ -2064,20 +2065,23 @@
     }
 
     .btn-search i {
-        font-size: 0.49rem;
+        font-size: 1rem;
     }
 
     .search-results {
-        max-height: 196px;
+        max-height: 280px;
         overflow-y: auto;
         background: var(--white);
-        border: 1.4px solid rgba(188, 148, 127, 0.2);
-        border-radius: 7.7px;
-        margin-top: 5.6px;
+        border: 2px solid rgba(188, 148, 127, 0.2);
+        border-radius: 10px;
+        margin-top: 8px;
+        position: relative;
+        z-index: 1000;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     }
 
     .search-result-item {
-        padding: 7.7px 9.8px;
+        padding: 12px 15px;
         border-bottom: 1px solid rgba(188, 148, 127, 0.1);
         cursor: pointer;
     }
@@ -2091,16 +2095,35 @@
     }
 
     .search-result-item h5 {
-        font-size: 0.49rem;
+        font-size: 1rem;
         font-weight: 600;
         color: var(--primary-dark);
-        margin-bottom: 2.8px;
+        margin-bottom: 5px;
     }
 
     .search-result-item p {
-        font-size: 0.441rem;
+        font-size: 0.875rem;
         color: var(--text-muted);
         margin: 0;
+    }
+    
+    @media (max-width: 480px) {
+        .btn-search {
+            padding: 10px 14px;
+            font-size: 0.8rem;
+        }
+        
+        .search-results {
+            max-height: 200px;
+        }
+        
+        .search-result-item h5 {
+            font-size: 0.9rem;
+        }
+        
+        .search-result-item p {
+            font-size: 0.8rem;
+        }
     }
     /* MONTHLY CALENDAR VIEW */
     .monthly-grid {
@@ -2571,6 +2594,3 @@
         width: 100%;
     }
 }
-
-
-
