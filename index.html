@@ -189,16 +189,18 @@
                         <h3 class="step-label">Pick Your Time Slot</h3>
                     </div>
 
-                    <!-- ADD THIS AFTER TIME SLOTS -->
-<div class="form-label" style="margin-top: 20px;">
-    <i class="fas fa-comment"></i> Additional Notes (Optional)
-</div>
-<textarea id="booking-comments" 
-          placeholder="Any special requests or notes for your appointment..." 
-          style="width: 100%; padding: 12px; border: 1.4px solid rgba(188, 148, 127, 0.2); 
-                 border-radius: 11.2px; font-family: 'Montserrat', sans-serif; 
-                 font-size: 0.665rem; min-height: 80px; resize: vertical;">
-</textarea>
+                    <div id="time-slots" class="time-grid"></div>
+
+
+                    <div class="form-label" style="margin-top: 20px;">
+                        <i class="fas fa-comment"></i> Additional Notes (Optional)
+                    </div>
+                    <textarea id="booking-comments" 
+                            placeholder="Any special requests or notes for your appointment..." 
+                            style="width: 100%; padding: 12px; border: 1.4px solid rgba(188, 148, 127, 0.2); 
+                                    border-radius: 11.2px; font-family: 'Montserrat', sans-serif; 
+                                    font-size: 0.665rem; min-height: 80px; resize: vertical;">
+                    </textarea>
 
                     <div id="booking-summary" class="summary-box hidden">
                         <h4>
@@ -218,7 +220,6 @@
                         </p>
                     </div>
 
-                    <div id="time-slots" class="time-grid"></div>
 
                     <button class="btn-primary hidden" id="book-now-btn">
                         <span>Confirm Booking</span>
