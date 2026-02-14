@@ -189,17 +189,15 @@
                         <h3 class="step-label">Pick Your Time Slot</h3>
                     </div>
 
-                    <div id="time-slots" class="time-grid"></div>
-
-
-                    <div class="form-label" style="margin-top: 20px;">
-                        <i class="fas fa-comment"></i> Additional Notes (Optional)
-                    </div>
+                    <!-- ADD THIS AFTER TIME SLOTS -->
+<div class="form-label" style="margin-top: 20px;">
+    <i class="fas fa-comment"></i> Additional Notes (Optional)
+</div>
 <textarea id="booking-comments" 
-    placeholder="Any special requests or notes for your appointment..." 
-    style="width: 100%; padding: 12px; border: 1.4px solid rgba(188, 148, 127, 0.2); 
-            border-radius: 11.2px; font-family: 'Montserrat', sans-serif; 
-            font-size: 0.665rem; min-height: 80px; resize: vertical;">
+          placeholder="Any special requests or notes for your appointment..." 
+          style="width: 100%; padding: 12px; border: 1.4px solid rgba(188, 148, 127, 0.2); 
+                 border-radius: 11.2px; font-family: 'Montserrat', sans-serif; 
+                 font-size: 0.665rem; min-height: 80px; resize: vertical;">
 </textarea>
 
                     <div id="booking-summary" class="summary-box hidden">
@@ -220,6 +218,7 @@
                         </p>
                     </div>
 
+                    <div id="time-slots" class="time-grid"></div>
 
                     <button class="btn-primary hidden" id="book-now-btn">
                         <span>Confirm Booking</span>
@@ -768,6 +767,45 @@
     </div>
 </div>
 
+<!-- Edit Client Modal -->
+<div id="edit-client-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2><i class="fas fa-user-edit"></i> Edit Client Information</h2>
+            <button class="close-modal-btn" onclick="closeEditClientModal()">×</button>
+        </div>
+        
+        <div class="form-group">
+            <label><i class="fas fa-user"></i> Full Name</label>
+            <input type="text" id="edit-client-name" class="form-input" placeholder="Client Name">
+        </div>
+        
+        <div class="form-group">
+            <label><i class="fas fa-phone"></i> Phone Number</label>
+            <input type="tel" id="edit-client-phone" class="form-input" placeholder="Phone Number">
+        </div>
+        
+        <div class="form-group">
+            <label><i class="fas fa-envelope"></i> Email Address</label>
+            <input type="email" id="edit-client-email" class="form-input" placeholder="Email Address">
+        </div>
+        
+        <div class="form-group">
+            <label><i class="fas fa-calendar"></i> Date of Birth</label>
+            <input type="date" id="edit-client-dob" class="form-input">
+        </div>
+        
+        <div class="modal-actions" style="display: flex; gap: 10px; margin-top: 20px;">
+            <button class="btn-primary" onclick="saveClientChanges()" style="flex: 1;">
+                <i class="fas fa-save"></i> Save Changes
+            </button>
+            <button class="btn-secondary" onclick="closeEditClientModal()" style="flex: 1;">
+                <i class="fas fa-times"></i> Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
@@ -818,4 +856,3 @@
     <script src="script.js"></script>
 </body>
 </html>
-
