@@ -2115,6 +2115,8 @@ function performClientSearch() {
                         name: user.name,
                         phone: user.phone,
                         email: user.email || 'N/A',
+                        uid: user.uid,
+                        dob: user.dob || '',
                         appointments: [] 
                     };
                 }
@@ -2146,8 +2148,32 @@ function performClientSearch() {
                     appointments: []
                 };
             }
+            // Add the appointment
             clientAppointments[key].appointments.push(appt);
         }
+    });
+
+    // 3. Now add ALL appointments for clients that were already found in allUsers
+    Object.keys(clientAppointments).forEach(key => {
+        const client = clientAppointments[key];
+        
+        // Find all appointments for this client (by phone or name)
+        mockAppointments.forEach(appt => {
+            const appointmentMatchesClient = 
+                (appt.phone && appt.phone === client.phone) || 
+                (appt.name && appt.name.toLowerCase() === client.name.toLowerCase());
+            
+            // Check if this appointment is already in the array
+            const alreadyAdded = client.appointments.some(existingAppt => 
+                existingAppt.date === appt.date && 
+                existingAppt.time === appt.time && 
+                existingAppt.tech === appt.tech
+            );
+            
+            if (appointmentMatchesClient && !alreadyAdded) {
+                client.appointments.push(appt);
+            }
+        });
     });
 
     const clients = Object.values(clientAppointments);
@@ -2211,14 +2237,10 @@ function performClientSearch() {
                         <p><i class="fas fa-envelope"></i> ${client.email || 'N/A'}</p>
                     </div>
                     <div class="client-stats">
-                        <div class="stat-badge">
-                            <i class="fas fa-calendar-check"></i>
-                            <span>${upcomingCount} Upcoming</span>
-                        </div>
-                        <div class="stat-badge">
-                            <i class="fas fa-check-circle"></i>
-                            <span>${completedCount} Completed</span>
-                        </div>
+                        <button class="btn-edit-client" onclick='openEditClientModal(${JSON.stringify(client)})' title="Edit Client Info">
+                            <i class="fas fa-pen"></i>
+                        </button>
+  
                     </div>
                 </div>
                 <div class="client-appointments-list">
@@ -3751,3 +3773,93 @@ function formatTimeFromInput(time24) {
 }
 
 console.log("Edit appointment fixes loaded successfully!");
+
+// ==========================================
+// EDIT CLIENT FUNCTIONALITY
+// ==========================================
+let currentEditingClient = null;
+
+function openEditClientModal(clientData) {
+    console.log("Opening edit modal for client:", clientData);
+    currentEditingClient = clientData;
+    
+    // Populate the form
+    document.getElementById('edit-client-name').value = clientData.name || '';
+    document.getElementById('edit-client-phone').value = clientData.phone || '';
+    document.getElementById('edit-client-email').value = clientData.email === 'N/A' ? '' : (clientData.email || '');
+    document.getElementById('edit-client-dob').value = clientData.dob || '';
+    
+    // Show the modal
+    document.getElementById('edit-client-modal').style.display = 'flex';
+}
+
+function closeEditClientModal() {
+    document.getElementById('edit-client-modal').style.display = 'none';
+    currentEditingClient = null;
+}
+
+async function saveClientChanges() {
+    if (!currentEditingClient) {
+        console.error("No client is being edited");
+        return;
+    }
+    
+    const newName = document.getElementById('edit-client-name').value.trim();
+    const newPhone = document.getElementById('edit-client-phone').value.trim();
+    const newEmail = document.getElementById('edit-client-email').value.trim();
+    const newDob = document.getElementById('edit-client-dob').value;
+    
+    if (!newName) {
+        alert("Client name is required!");
+        return;
+    }
+    
+    if (!newPhone) {
+        alert("Phone number is required!");
+        return;
+    }
+    
+    // Check if client has a UID (exists in Firebase)
+    if (currentEditingClient.uid) {
+        try {
+            // Update in Firebase
+            const userRef = dbRef(db, `users/${currentEditingClient.uid}`);
+            await dbUpdate(userRef, {
+                name: newName,
+                phone: newPhone,
+                email: newEmail || '',
+                dob: newDob || ''
+            });
+            
+            console.log("Client updated in Firebase successfully!");
+            
+            // Update local allUsers array
+            const userIndex = window.allUsers.findIndex(u => u.uid === currentEditingClient.uid);
+            if (userIndex !== -1) {
+                window.allUsers[userIndex].name = newName;
+                window.allUsers[userIndex].phone = newPhone;
+                window.allUsers[userIndex].email = newEmail;
+                window.allUsers[userIndex].dob = newDob;
+            }
+            
+            // Show success message
+            alert("Client information updated successfully!");
+            
+            // Close modal
+            closeEditClientModal();
+            
+            // Refresh the search results
+            performClientSearch();
+            
+        } catch (error) {
+            console.error("Error updating client:", error);
+            alert("Error updating client information. Please try again.");
+        }
+    } else {
+        // Client doesn't have a UID (only exists in appointments)
+        alert("This client doesn't have a user account. You can only edit clients who have signed up.");
+        console.log("Cannot edit client without UID");
+    }
+}
+
+console.log("Edit client functionality loaded successfully!");
