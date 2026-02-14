@@ -213,6 +213,42 @@
         overflow: hidden;
     }
 
+    /* Decorative line art for client profile */
+    #client-profile-section .card::before {
+        content: '';
+        position: absolute;
+        top: -50px;
+        right: -50px;
+        width: 200px;
+        height: 200px;
+        background-image: url('https://i.ibb.co/9gKxJw5/Whats-App-Image-2026-01-14-at-16-57-34-1.jpg');
+        background-size: contain;
+        background-repeat: no-repeat;
+        opacity: 0.04;
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    #client-profile-section .card::after {
+        content: '';
+        position: absolute;
+        bottom: -80px;
+        left: -60px;
+        width: 250px;
+        height: 250px;
+        background-image: url('https://i.ibb.co/WkHy5Lr/Whats-App-Image-2026-01-14-at-16-57-34.jpg');
+        background-size: contain;
+        background-repeat: no-repeat;
+        opacity: 0.03;
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    #client-profile-section .card > * {
+        position: relative;
+        z-index: 1;
+    }
+
     .card::before {
         content: '';
         position: absolute;
@@ -222,10 +258,28 @@
         height: 2.8px;
         background: var(--gradient-primary);
         opacity: 0;
+        z-index: 2;
     }
 
     .card:hover::before {
         opacity: 1;
+    }
+
+    /* Palm shadow overlay for client profile */
+    #client-profile-section .card-header::before {
+        content: '';
+        position: absolute;
+        top: -100px;
+        right: -100px;
+        width: 300px;
+        height: 300px;
+        background-image: url('https://i.ibb.co/k0qLY3t/Whats-App-Image-2026-01-14-at-16-57-34-2.jpg');
+        background-size: cover;
+        background-position: center;
+        opacity: 0.06;
+        pointer-events: none;
+        z-index: 0;
+        filter: blur(1px);
     }
 
     .card:hover {
@@ -259,7 +313,28 @@
     }
 
     .card-header {
-        margin-bottom: 24.5px;
+        margin-bottom: 32px;
+        position: relative;
+    }
+
+    #client-profile-section .card-header {
+        position: relative;
+    }
+
+    #client-profile-section .card-header .section-title {
+        position: relative;
+        display: inline-block;
+    }
+
+    #client-profile-section .card-header::after {
+        content: '';
+        width: 80px;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, var(--primary-tan), transparent);
+        display: block;
+        margin: 20px auto 0;
+        border-radius: 2px;
+        opacity: 0.4;
     }
 
     .card-subheader {
@@ -283,19 +358,20 @@
 
     .section-title {
         font-family: 'Playfair Display', serif;
-        font-size: 1.4rem;
-        margin-bottom: 8.4px;
-        color: var(--text-dark);
-        font-weight: 700;
-        letter-spacing: 0.35px;
-        line-height: 1.3;
+        font-size: 1.6rem;
+        margin-bottom: 8px;
+        color: var(--primary-dark);
+        font-weight: 600;
+        letter-spacing: 0.2px;
+        line-height: 1.4;
     }
 
     .subtitle {
         color: var(--text-muted);
-        font-size: 0.665rem;
-        margin-bottom: 24.5px;
+        font-size: 0.85rem;
+        margin-bottom: 32px;
         font-weight: 400;
+        opacity: 0.8;
     }
 
     .page-title {
@@ -730,62 +806,87 @@
         display: flex;
         justify-content: center;
         gap: 14px;
-        margin-bottom: 21px;
+        margin-bottom: 30px;
     }
 
     .stat-card {
-        background: var(--gradient-soft);
-        padding: 10.5px 17.5px;
-        border-radius: 14px;
+        background: linear-gradient(135deg, rgba(188, 148, 127, 0.08) 0%, rgba(215, 187, 170, 0.06) 100%);
+        padding: 14px 24px;
+        border-radius: 20px;
         display: flex;
         align-items: center;
-        gap: 8.4px;
-        border: 1.4px solid rgba(188, 148, 127, 0.2);
+        gap: 10px;
+        border: none;
+        box-shadow: 0 4px 20px rgba(188, 148, 127, 0.08);
     }
 
     .stat-card i {
-        font-size: 1.05rem;
+        font-size: 1.1rem;
         color: var(--primary-tan);
+        opacity: 0.8;
+    }
+
+    .stat-card span {
+        font-weight: 500;
+        color: var(--text-dark);
+        letter-spacing: 0.3px;
+        font-size: 0.9rem;
     }
 
     .booking-filter-tabs {
         display: flex;
-        gap: 8.4px;
-        margin-bottom: 21px;
+        gap: 10px;
+        margin-bottom: 30px;
         justify-content: center;
         flex-wrap: wrap;
+        padding: 6px;
+        background: rgba(188, 148, 127, 0.06);
+        border-radius: 25px;
+        width: fit-content;
+        margin-left: auto;
+        margin-right: auto;
     }
 
     .tab {
-        background: var(--white);
-        border: 1.4px solid rgba(188, 148, 127, 0.2);
-        padding: 8.4px 16.8px;
-        border-radius: 14px;
+        background: transparent;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 20px;
         cursor: pointer;
-        font-weight: 600;
+        font-weight: 500;
         display: flex;
         align-items: center;
-        gap: 5.6px;
-        color: var(--text-dark);
+        gap: 8px;
+        color: var(--text-muted);
+        transition: all 0.3s ease;
+        font-size: 0.85rem;
     }
 
     .tab i {
         color: var(--primary-tan);
+        opacity: 0.6;
+        font-size: 0.9rem;
     }
 
     .tab:hover {
-        background: var(--gradient-soft);
-        border-color: var(--primary-tan);
+        background: rgba(188, 148, 127, 0.1);
+        color: var(--text-dark);
+    }
+
+    .tab:hover i {
+        opacity: 0.9;
     }
 
     .tab.active {
-        background: var(--gradient-primary);
-        color: var(--white);
-        border-color: var(--primary-dark);
+        background: var(--white);
+        color: var(--primary-dark);
+        box-shadow: 0 2px 12px rgba(188, 148, 127, 0.15);
+        font-weight: 600;
     }
 
     .tab.active i {
-        color: var(--white);
+        color: var(--primary-tan);
+        opacity: 1;
     }
 
     .list-container {
@@ -795,116 +896,208 @@
 
     .appointment-card {
         background: var(--white);
-        padding: 17.5px;
-        border-radius: 12.6px;
-        margin-bottom: 14px;
-        border: 1.4px solid rgba(188, 148, 127, 0.15);
+        padding: 24px;
+        border-radius: 20px;
+        margin-bottom: 16px;
+        border: none;
         position: relative;
+        box-shadow: 0 2px 16px rgba(188, 148, 127, 0.08);
+        transition: all 0.3s ease;
+        overflow: hidden;
+        animation: fadeInUp 0.5s ease forwards;
+        opacity: 0;
+    }
+
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .appointment-card:nth-child(1) { animation-delay: 0.1s; }
+    .appointment-card:nth-child(2) { animation-delay: 0.2s; }
+    .appointment-card:nth-child(3) { animation-delay: 0.3s; }
+    .appointment-card:nth-child(4) { animation-delay: 0.4s; }
+    .appointment-card:nth-child(5) { animation-delay: 0.5s; }
+
+    .appointment-card::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: var(--gradient-primary);
+        border-radius: 20px 0 0 20px;
+        z-index: 2;
+    }
+
+    .appointment-card::after {
+        content: '';
+        position: absolute;
+        bottom: -30px;
+        right: -30px;
+        width: 120px;
+        height: 120px;
+        background-image: url('https://i.ibb.co/9gKxJw5/Whats-App-Image-2026-01-14-at-16-57-34-1.jpg');
+        background-size: contain;
+        background-repeat: no-repeat;
+        opacity: 0.03;
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    .appointment-card > * {
+        position: relative;
+        z-index: 1;
     }
 
     .appointment-card:hover {
-        transform: none;
-        box-shadow: 0 5.6px 14px var(--shadow-soft);
-        border-color: var(--primary-tan);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(188, 148, 127, 0.15);
+    }
+
+    .appointment-card:hover::after {
+        opacity: 0.05;
     }
 
     .appt-info h4 {
         font-family: 'Playfair Display', serif;
-        font-size: 0.91rem;
+        font-size: 1.1rem;
         color: var(--primary-dark);
-        margin-bottom: 8.4px;
+        margin-bottom: 12px;
+        font-weight: 600;
     }
 
     .appt-info p {
-        margin: 5.6px 0;
+        margin: 8px 0;
         color: var(--text-dark);
         display: flex;
         align-items: center;
-        gap: 7px;
+        gap: 10px;
+        font-size: 0.9rem;
+        opacity: 0.85;
     }
 
     .appt-info i {
         color: var(--primary-tan);
-        width: 14px;
+        width: 16px;
+        opacity: 0.7;
     }
 
     .appt-time {
         position: absolute;
-        top: 17.5px;
-        right: 17.5px;
-        font-size: 1.05rem;
-        font-weight: 700;
+        top: 24px;
+        right: 24px;
+        font-size: 1rem;
+        font-weight: 600;
         color: var(--primary-tan);
+        background: rgba(188, 148, 127, 0.08);
+        padding: 8px 16px;
+        border-radius: 12px;
     }
 
     .status-badge {
         display: inline-flex;
         align-items: center;
-        gap: 4.2px;
-        padding: 5.6px 11.2px;
-        border-radius: 14px;
-        font-weight: 600;
-        font-size: 0.56rem;
-        text-transform: uppercase;
-        letter-spacing: 0.7px;
-        margin-top: 8.4px;
+        gap: 6px;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-weight: 500;
+        font-size: 0.75rem;
+        text-transform: capitalize;
+        letter-spacing: 0.3px;
+        margin-top: 10px;
     }
 
     .status-confirmed {
-        background: rgba(110, 191, 139, 0.2);
+        background: rgba(110, 191, 139, 0.12);
         color: var(--success);
-        border: 1.4px solid var(--success);
+        border: none;
     }
 
     .status-pending {
-        background: rgba(244, 162, 97, 0.2);
+        background: rgba(244, 162, 97, 0.12);
         color: var(--warning);
-        border: 1.4px solid var(--warning);
+        border: none;
     }
 
     .status-cancelled {
-        background: rgba(231, 111, 81, 0.2);
+        background: rgba(231, 111, 81, 0.12);
         color: var(--danger);
-        border: 1.4px solid var(--danger);
+        border: none;
     }
 
     .badge-confirmed {
         background: var(--success);
         color: white;
-        padding: 2.8px 7px;
-        border-radius: 8.4px;
-        font-size: 0.525rem;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.7rem;
         font-weight: 600;
     }
 
     .badge-pending {
         background: var(--warning);
         color: white;
-        padding: 2.8px 7px;
-        border-radius: 8.4px;
-        font-size: 0.525rem;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.7rem;
         font-weight: 600;
     }
 
     .badge-cancelled {
         background: var(--danger);
         color: white;
-        padding: 2.8px 7px;
-        border-radius: 8.4px;
-        font-size: 0.525rem;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.7rem;
         font-weight: 600;
     }
 
     .empty-state {
         text-align: center;
-        padding: 42px 14px;
+        padding: 60px 20px;
         color: var(--text-muted);
+        position: relative;
+    }
+
+    .empty-state::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 180px;
+        height: 180px;
+        background-image: url('https://i.ibb.co/WkHy5Lr/Whats-App-Image-2026-01-14-at-16-57-34.jpg');
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        opacity: 0.05;
+        pointer-events: none;
+        z-index: 0;
     }
 
     .empty-state i {
-        font-size: 2.1rem;
-        margin-bottom: 14px;
-        opacity: 0.5;
+        font-size: 3rem;
+        margin-bottom: 16px;
+        opacity: 0.3;
+        color: var(--primary-tan);
+        position: relative;
+        z-index: 1;
+    }
+
+    .empty-state p {
+        font-size: 0.95rem;
+        opacity: 0.7;
+        position: relative;
+        z-index: 1;
     }
 
     /* ADMIN DASHBOARD */
@@ -1665,6 +1858,32 @@
         gap: 7px;
     }
 
+    .btn-edit-client {
+        background: var(--gradient-primary);
+        border: none;
+        color: var(--white);
+        cursor: pointer;
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(188, 148, 127, 0.2);
+        margin-right: 10px;
+    }
+
+    .btn-edit-client:hover {
+        background: var(--primary-dark);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(188, 148, 127, 0.3);
+    }
+
+    .btn-edit-client i {
+        font-size: 0.875rem;
+    }
+
     .client-appointments-list {
         margin-top: 14px;
     }
@@ -2034,9 +2253,8 @@
     /* CLIENT SEARCH IN ADMIN BOOKING MODAL */
     .input-with-search {
         display: flex;
-        gap: 10px;
+        gap: 5.6px;
         align-items: center;
-        position: relative;
     }
 
     .input-with-search .input-group {
@@ -2047,15 +2265,15 @@
     .btn-search {
         background: var(--primary-tan);
         border: none;
-        padding: 12px 18px;
-        border-radius: 10px;
+        padding: 7.7px 11.9px;
+        border-radius: 7.7px;
         color: var(--white);
         font-weight: 600;
         cursor: pointer;
         display: flex;
         align-items: center;
-        gap: 8px;
-        font-size: 0.875rem;
+        gap: 4.2px;
+        font-size: 0.441rem;
         white-space: nowrap;
     }
 
@@ -2065,23 +2283,20 @@
     }
 
     .btn-search i {
-        font-size: 1rem;
+        font-size: 0.49rem;
     }
 
     .search-results {
-        max-height: 280px;
+        max-height: 196px;
         overflow-y: auto;
         background: var(--white);
-        border: 2px solid rgba(188, 148, 127, 0.2);
-        border-radius: 10px;
-        margin-top: 8px;
-        position: relative;
-        z-index: 1000;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        border: 1.4px solid rgba(188, 148, 127, 0.2);
+        border-radius: 7.7px;
+        margin-top: 5.6px;
     }
 
     .search-result-item {
-        padding: 12px 15px;
+        padding: 7.7px 9.8px;
         border-bottom: 1px solid rgba(188, 148, 127, 0.1);
         cursor: pointer;
     }
@@ -2095,35 +2310,16 @@
     }
 
     .search-result-item h5 {
-        font-size: 1rem;
+        font-size: 0.49rem;
         font-weight: 600;
         color: var(--primary-dark);
-        margin-bottom: 5px;
+        margin-bottom: 2.8px;
     }
 
     .search-result-item p {
-        font-size: 0.875rem;
+        font-size: 0.441rem;
         color: var(--text-muted);
         margin: 0;
-    }
-    
-    @media (max-width: 480px) {
-        .btn-search {
-            padding: 10px 14px;
-            font-size: 0.8rem;
-        }
-        
-        .search-results {
-            max-height: 200px;
-        }
-        
-        .search-result-item h5 {
-            font-size: 0.9rem;
-        }
-        
-        .search-result-item p {
-            font-size: 0.8rem;
-        }
     }
     /* MONTHLY CALENDAR VIEW */
     .monthly-grid {
@@ -2592,5 +2788,194 @@
     
     .modal-actions button {
         width: 100%;
+    }
+}
+
+/* Edit Client Modal Styles */
+#edit-client-modal .modal-content {
+    max-width: 400px; /* 30% smaller than default modals */
+    padding: 25px 20px;
+}
+
+/* MODAL HEADER LAYOUT */
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid rgba(188, 148, 127, 0.2);
+}
+
+.modal-header h2 {
+    margin: 0;
+    flex: 1;
+}
+
+/* MODAL CLOSE BUTTON STYLING */
+.close-modal-btn {
+    background: none;
+    border: none;
+    font-size: 1.8rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    width: 35px;
+    height: 35px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    line-height: 1;
+    flex-shrink: 0;
+    margin-left: 15px;
+}
+
+.close-modal-btn:hover {
+    background: rgba(188, 148, 127, 0.1);
+    color: var(--danger);
+    transform: rotate(90deg);
+}
+
+.close-modal-btn:active {
+    transform: rotate(90deg) scale(0.95);
+}
+
+#edit-client-modal .modal-header h2 {
+    font-size: 1.3rem;
+}
+
+#edit-client-modal .form-group {
+    margin-bottom: 15px; /* Reduced from 20px */
+}
+
+#edit-client-modal .form-group label {
+    display: flex;
+    align-items: center;
+    gap: 6px; /* Reduced from 8px */
+    margin-bottom: 6px; /* Reduced from 8px */
+    font-weight: 600;
+    color: var(--primary-dark);
+    font-size: 0.85rem; /* Reduced from 0.95rem */
+}
+
+#edit-client-modal .form-group label i {
+    color: var(--primary-tan);
+    width: 18px; /* Reduced from 20px */
+    text-align: center;
+    font-size: 0.85rem;
+}
+
+#edit-client-modal .form-input {
+    width: 100%;
+    padding: 10px 12px; /* Reduced from 12px 15px */
+    border: 2px solid rgba(188, 148, 127, 0.2);
+    border-radius: 8px; /* Reduced from 10px */
+    font-size: 0.9rem; /* Reduced from 1rem */
+    transition: all 0.3s ease;
+    background: white;
+    color: var(--text-dark);
+    font-family: 'Montserrat', sans-serif;
+}
+
+#edit-client-modal .form-input:focus {
+    outline: none;
+    border-color: var(--primary-tan);
+    box-shadow: 0 0 0 3px rgba(188, 148, 127, 0.1);
+}
+
+.btn-secondary {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+    background: #5a6268;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* MOBILE RESPONSIVE STYLES FOR CLIENT HISTORY CARDS */
+@media (max-width: 768px) {
+    .client-history-card {
+        padding: 14px;
+        margin-bottom: 12px;
+        border-radius: 10px;
+    }
+
+    .client-info-header {
+        margin-bottom: 12px;
+        padding-bottom: 10px;
+    }
+
+    .client-info-header h3 {
+        font-size: 1.05rem;
+        margin-bottom: 5px;
+    }
+
+    .client-stats {
+        gap: 5px;
+        flex-wrap: wrap;
+    }
+
+    .stat-badge {
+        font-size: 0.7rem;
+        padding: 4px 8px;
+    }
+
+    .btn-edit-client {
+        padding: 6px 10px;
+        font-size: 0.75rem;
+        margin-right: 6px;
+    }
+
+    .btn-edit-client i {
+        font-size: 0.75rem;
+    }
+
+    .client-appointments-list {
+        margin-top: 10px;
+    }
+
+    .client-appointments-list h4 {
+        font-size: 0.85rem;
+        margin-bottom: 8px;
+    }
+
+    .appointment-mini-card {
+        padding: 8px;
+        font-size: 0.8rem;
+    }
+}
+
+/* EXTRA SMALL PHONES */
+@media (max-width: 480px) {
+    .client-history-card {
+        padding: 12px;
+        margin-bottom: 10px;
+        border-radius: 8px;
+    }
+
+    .client-info-header {
+        align-items: flex-start;
+    }
+
+    .client-info-header h3 {
+        font-size: 0.95rem;
+    }
+
+    .btn-edit-client {
+        padding: 5px 8px;
+        font-size: 0.7rem;
     }
 }
