@@ -686,6 +686,10 @@ bookNowBtn.onclick = async () => {
     }
 
     const checked = Array.from(serviceCheckboxList.querySelectorAll('input:checked'));
+    if (checked.length === 0) {
+        showNotification('Please select at least one service', 'warning');
+        return;
+    }
     const selectedServiceNames = checked.map(el => el.dataset.name);
     const selectedServiceIds = checked.map(el => el.value);
     const needsApproval = checked.some(el => el.dataset.confirm === 'true');
@@ -1137,13 +1141,18 @@ function renderAdminScheduler() {
                 openEditAppointmentModal(appt.firebaseId);
             };
             
-            apptEl.innerHTML = `
-                <button class="cancel-appt-btn" onclick="event.stopPropagation(); deleteAppointment('${appt.firebaseId}')" title="Cancel appointment">×</button>
-                <div class="client-name"><i class="fas fa-user"></i> ${appt.name}</div>
-                <div class="service-name"><i class="fas fa-cut"></i> ${appt.services.join(', ')}</div>
-                <div style="font-size:0.75rem; opacity:0.9; margin-top:4px;"><i class="fas fa-clock"></i> ${appt.time}</div>
-            `;
-            grid.appendChild(apptEl);
+// SAFE VERSION: Checks if services exists before joining
+const serviceList = (appt.services && Array.isArray(appt.services)) 
+    ? appt.services.join(', ') 
+    : 'No service selected';
+
+apptEl.innerHTML = `
+    <button class="cancel-appt-btn" onclick="event.stopPropagation(); deleteAppointment('${appt.firebaseId}')" title="Cancel appointment">×</button>
+    <div class="client-name"><i class="fas fa-user"></i> ${appt.name}</div>
+    <div class="service-name"><i class="fas fa-cut"></i> ${serviceList}</div>
+    <div style="font-size:0.75rem; opacity:0.9; margin-top:4px;"><i class="fas fa-clock"></i> ${appt.time}</div>
+`;
+grid.appendChild(apptEl);
         }
     });
 }
@@ -2340,12 +2349,15 @@ function renderReminders() {
                     </div>
                 </div>
 
-                <div class="reminder-details">
-                    <p><i class="fas fa-phone"></i> ${reminder.phone}</p>
-                    <p><i class="fas fa-calendar"></i> ${appt.date} at ${appt.time}</p>
-                    <p><i class="fas fa-concierge-bell"></i> ${appt.services.join(', ')}</p>
-                    ${reminder.type === 'staff' ? `<p><i class="fas fa-user"></i> Client: ${appt.name}</p>` : ''}
-                </div>
+<div class="reminder-details">
+    <p><i class="fas fa-phone"></i> ${reminder.phone}</p>
+    <p><i class="fas fa-calendar"></i> ${appt.date} at ${appt.time}</p>
+    <p>
+        <i class="fas fa-concierge-bell"></i> 
+        ${(appt.services && Array.isArray(appt.services)) ? appt.services.join(', ') : 'No services listed'}
+    </p>
+    ${reminder.type === 'staff' ? `<p><i class="fas fa-user"></i> Client: ${appt.name}</p>` : ''}
+</div>
 
                 <button
                     onclick="sendWhatsAppReminder('${reminderKey}', '${reminder.phone}', '${reminder.name}', '${appt.date}', '${appt.time}', '${appt.services.join(', ')}', '${reminder.type}')"
