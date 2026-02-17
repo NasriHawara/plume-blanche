@@ -710,7 +710,7 @@ bookNowBtn.onclick = async () => {
         phone: currentUser.phone,
         email: currentUser.email,
         userId: currentUser.uid,
-        specialistId: selectedSpecialist.userId || "",
+specialistId: selectedSpecialist ? (selectedSpecialist.userId || "") : "",
         services: selectedServiceNames,
         serviceIds: selectedServiceIds,
         tech: selectedSpecialistName,
@@ -917,14 +917,22 @@ if (document.getElementById('specialist-date-filter')) {
 // ADMIN DASHBOARD
 // ==========================================
 function refreshAdminData() {
-    renderAdminInbox();
+    // Always update lightweight helpers
     updateAdminFilterDropdowns();
-    renderAdminScheduler();
-    renderStaffList();
-    renderServiceList();
     updateLaserButton();
-    renderClientHistory();
-    renderReminders();
+
+    // Only re-render the currently visible tab
+    const activeBtn = document.querySelector('.tab-btn.active');
+    const onclickVal = activeBtn?.getAttribute('onclick') || '';
+    const match = onclickVal.match(/switchAdminTab\('(\w+)'\)/);
+    const activeTab = match ? match[1] : 'schedule';
+
+    if (activeTab === 'schedule') renderAdminScheduler();
+    else if (activeTab === 'requests') renderAdminInbox();
+    else if (activeTab === 'staff') renderStaffList();
+    else if (activeTab === 'services') renderServiceList();
+    else if (activeTab === 'history') renderClientHistory();
+    else if (activeTab === 'reminders') renderReminders();
 }
 
 function switchAdminTab(tabName) {
@@ -1562,9 +1570,7 @@ function searchClients() {
     const searchTerm = document.getElementById('admin-client-name').value.trim().toLowerCase();
     const resultsContainer = document.getElementById('client-search-results');
 
-    console.log("=== SEARCH DEBUG ===");
-    console.log("Search term:", searchTerm);
-    console.log("All users available:", window.allUsers ? window.allUsers.length : 0);
+
 
     if (!searchTerm) {
         resultsContainer.classList.add('hidden');
@@ -2084,11 +2090,7 @@ function performClientSearch() {
     const searchTerm = document.getElementById('client-search-input').value.trim().toLowerCase();
     const resultsContainer = document.getElementById('client-history-results');
     
-    console.log("=== DEBUG: Starting search ===");
-    console.log("Search term:", searchTerm);
-    console.log("window.allUsers exists?", typeof window.allUsers);
-    console.log("window.allUsers is array?", Array.isArray(window.allUsers));
-    console.log("window.allUsers length:", window.allUsers?.length);
+
 
     if (!searchTerm) {
         resultsContainer.innerHTML = '<p style="text-align:center; color:var(--text-muted); padding:40px;"><i class="fas fa-search"></i><br>Search for a client by name or phone number</p>';
@@ -2099,24 +2101,20 @@ function performClientSearch() {
 
     // 1. Process Users (Handles both Signed-up and Imported)
     if (window.allUsers && Array.isArray(window.allUsers) && window.allUsers.length > 0) {
-        console.log("DEBUG: Processing allUsers array with", window.allUsers.length, "users");
         
         const usersList = window.allUsers;
         let importedClientsFound = 0;
 
         usersList.forEach((user, index) => {
-            console.log(`DEBUG: Checking user ${index}:`, user.name, "Role:", user.role, "ID:", user.uid);
             
             if (user.role !== 'client') return;
             
             const name = (user.name || "").toLowerCase();
             const phone = (user.phone || "").toString();
             
-            console.log(`DEBUG: Checking if "${name}" or "${phone}" includes "${searchTerm}"`);
 
             if (name.includes(searchTerm) || phone.includes(searchTerm)) {
                 importedClientsFound++;
-                console.log(`DEBUG: MATCH FOUND! ${user.name} (${user.phone})`);
                 const key = user.phone || user.name;
                 
                 if (!clientAppointments[key]) {
@@ -3137,9 +3135,7 @@ function searchClientForBooking() {
     const searchTerm = document.getElementById('admin-client-search').value.trim().toLowerCase();
     const resultsContainer = document.getElementById('admin-client-search-results');
 
-    console.log("=== CLIENT SEARCH DEBUG ===");
-    console.log("Search term:", searchTerm);
-    console.log("All users available:", window.allUsers ? window.allUsers.length : 0);
+
 
     if (!searchTerm || searchTerm.length < 2) {
         resultsContainer.classList.add('hidden');
@@ -3867,11 +3863,29 @@ async function saveClientChanges() {
             console.error("Error updating client:", error);
             alert("Error updating client information. Please try again.");
         }
-    } else {
-        // Client doesn't have a UID (only exists in appointments)
-        alert("This client doesn't have a user account. You can only edit clients who have signed up.");
-        console.log("Cannot edit client without UID");
+} else {
+    // No uid = manually added client, update their appointments directly
+    try {
+        const updates = {};
+        mockAppointments
+            .filter(appt => appt.phone === currentEditingClient.phone || appt.name === currentEditingClient.name)
+            .forEach(appt => {
+                updates[`appointments/${appt.firebaseId}/name`] = newName;
+                updates[`appointments/${appt.firebaseId}/phone`] = newPhone;
+                updates[`appointments/${appt.firebaseId}/email`] = newEmail || '';
+            });
+
+        const rootRef = window.dbRef(window.db, '/');
+        await window.dbUpdate(rootRef, updates);
+
+        alert("Client information updated successfully!");
+        closeEditClientModal();
+        performClientSearch();
+    } catch (error) {
+        console.error("Error updating client:", error);
+        alert("Error updating client information. Please try again.");
     }
+}
 }
 
 console.log("Edit client functionality loaded successfully!");
