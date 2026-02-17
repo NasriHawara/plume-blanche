@@ -42,26 +42,8 @@
         overflow-x: hidden;
     }
 
-    body::before {
-        content: '';
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-image: url('https://customer-assets.emergentagent.com/job_hair-hub-12/artifacts/5dyypdaa_e44f8abd-d81f-4011-8ff9-dca2c34edf44.jfif');
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-        background-attachment: fixed;
-        z-index: -2;
-    }
 
-    @media (min-width: 768px) {
-        body::before {
-            background-image: url('https://customer-assets.emergentagent.com/job_hair-hub-12/artifacts/vv8k78tl_4aa73dc1-4c63-44a8-8049-b263a3176790.jfif');
-        }
-    }
+
 
     .bg-overlay {
         position: fixed;
@@ -71,7 +53,6 @@
         bottom: 0;
         background: var(--gradient-overlay);
         z-index: -1;
-        backdrop-filter: blur(1.4px);
     }
 
     /* HEADER & NAVIGATION */
@@ -221,9 +202,7 @@
         right: -50px;
         width: 200px;
         height: 200px;
-        background-image: url('https://i.ibb.co/9gKxJw5/Whats-App-Image-2026-01-14-at-16-57-34-1.jpg');
-        background-size: contain;
-        background-repeat: no-repeat;
+
         opacity: 0.04;
         pointer-events: none;
         z-index: 0;
@@ -236,9 +215,7 @@
         left: -60px;
         width: 250px;
         height: 250px;
-        background-image: url('https://i.ibb.co/WkHy5Lr/Whats-App-Image-2026-01-14-at-16-57-34.jpg');
-        background-size: contain;
-        background-repeat: no-repeat;
+
         opacity: 0.03;
         pointer-events: none;
         z-index: 0;
@@ -273,9 +250,6 @@
         right: -100px;
         width: 300px;
         height: 300px;
-        background-image: url('https://i.ibb.co/k0qLY3t/Whats-App-Image-2026-01-14-at-16-57-34-2.jpg');
-        background-size: cover;
-        background-position: center;
         opacity: 0.06;
         pointer-events: none;
         z-index: 0;
@@ -944,9 +918,7 @@
         right: -30px;
         width: 120px;
         height: 120px;
-        background-image: url('https://i.ibb.co/9gKxJw5/Whats-App-Image-2026-01-14-at-16-57-34-1.jpg');
-        background-size: contain;
-        background-repeat: no-repeat;
+
         opacity: 0.03;
         pointer-events: none;
         z-index: 0;
@@ -1075,10 +1047,7 @@
         transform: translate(-50%, -50%);
         width: 180px;
         height: 180px;
-        background-image: url('https://i.ibb.co/WkHy5Lr/Whats-App-Image-2026-01-14-at-16-57-34.jpg');
-        background-size: contain;
-        background-repeat: no-repeat;
-        background-position: center;
+
         opacity: 0.05;
         pointer-events: none;
         z-index: 0;
@@ -2587,7 +2556,6 @@
     -moz-appearance: menulist;
     cursor: pointer;
     background-color: white !important;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 12px center;
     padding-right: 35px !important;
