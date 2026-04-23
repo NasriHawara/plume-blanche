@@ -3412,12 +3412,19 @@ function openEditAppointmentModal(appointmentId) {
         </div>
     `;
 
+    // Always reset to view mode when opening, so stale edit form from a previous appointment never shows
+    document.getElementById('edit-edit-mode').classList.add('hidden');
+    document.getElementById('edit-view-mode').classList.remove('hidden');
+
     modal.classList.add('active');
 }
 
 // Close edit appointment modal
 function closeEditAppointmentModal() {
     document.getElementById('edit-appointment-modal').classList.remove('active');
+    // Reset to view mode on close as well
+    document.getElementById('edit-edit-mode').classList.add('hidden');
+    document.getElementById('edit-view-mode').classList.remove('hidden');
     window.currentEditingAppointment = null;
 }
 
