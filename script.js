@@ -3034,6 +3034,20 @@ window.openEditAppointmentModal = function(appointmentId) {
         return;
     }
     
+    // *** FIX: Always fully reset state before loading a new appointment ***
+    window.currentEditingAppointment = null;
+    document.getElementById('edit-edit-mode').classList.add('hidden');
+    document.getElementById('edit-view-mode').classList.remove('hidden');
+
+    // Reset all edit form fields so previous appointment data never bleeds through
+    document.getElementById('edit-appointment-date').value = '';
+    document.getElementById('edit-appointment-time').value = '';
+    document.getElementById('edit-appointment-tech').innerHTML = '<option value="">Select specialist...</option>';
+    const editServiceList = document.getElementById('edit-service-checkbox-list');
+    if (editServiceList) editServiceList.innerHTML = '';
+    const editSummary = document.getElementById('edit-booking-summary');
+    if (editSummary) editSummary.classList.add('hidden');
+
     window.currentEditingAppointment = appointment;
     
     const modal = document.getElementById('edit-appointment-modal');
@@ -3359,8 +3373,22 @@ function openEditAppointmentModal(appointmentId) {
         return;
     }
 
+    // *** FIX: Always fully reset state before loading a new appointment ***
+    window.currentEditingAppointment = null;
+    document.getElementById('edit-edit-mode').classList.add('hidden');
+    document.getElementById('edit-view-mode').classList.remove('hidden');
+
+    // Reset all edit form fields so previous appointment data never bleeds through
+    document.getElementById('edit-appointment-date').value = '';
+    document.getElementById('edit-appointment-time').value = '';
+    document.getElementById('edit-appointment-tech').innerHTML = '<option value="">Select specialist...</option>';
+    const editServiceList = document.getElementById('edit-service-checkbox-list');
+    if (editServiceList) editServiceList.innerHTML = '';
+    const editSummary = document.getElementById('edit-booking-summary');
+    if (editSummary) editSummary.classList.add('hidden');
+
     window.currentEditingAppointment = appointment;
-    
+
     const modal = document.getElementById('edit-appointment-modal');
     const detailsDiv = document.getElementById('edit-appointment-details');
 
