@@ -609,8 +609,17 @@ function generate15MinSlots() {
     }
 
     const dateObj = new Date(selectedDate + 'T00:00:00');
+    const isAdmin = currentUser && currentUser.role === 'admin';
+
     if (dateObj.getDay() === 0 && currentUser && currentUser.role !== 'admin') {
         timeGrid.innerHTML = '<p style="text-align:center; padding:20px; color:var(--warning);"><i class="fas fa-exclamation-circle"></i> We are closed on Sundays</p>';
+        bookNowBtn.classList.add('hidden');
+        return;
+    }
+
+    // Block the whole day if this specialist has a specific-date off-day (admin can still see/book)
+    if (!isAdmin && isTechOffOnDate(selectedTech, selectedDate)) {
+        timeGrid.innerHTML = '<p style="text-align:center; padding:20px; color:var(--warning);"><i class="fas fa-exclamation-circle"></i> This specialist is off on the selected date</p>';
         bookNowBtn.classList.add('hidden');
         return;
     }
@@ -620,21 +629,21 @@ function generate15MinSlots() {
     const todayStr = today.toISOString().split('T')[0];
     const isToday = selectedDate === todayStr;
     const currentMinutes = today.getHours() * 60 + today.getMinutes();
+    const MIN_LEAD_MINUTES = 120; // clients must book at least 2 hours ahead
 
     let startMins = APP_SETTINGS.openingTime * 60;
-    const isAdmin = currentUser && currentUser.role === 'admin';
     const limitMins = isAdmin ? 1440 : (APP_SETTINGS.closingTime * 60);
 
     let slotsAdded = 0;
 
     while (startMins + totalMins <= limitMins) {
-        // Skip past time slots for today (unless admin)
-        if (isToday && !isAdmin && startMins <= currentMinutes) {
+        // Skip past time slots, and (for clients booking today) anything within the 2-hour lead window
+        if (isToday && !isAdmin && startMins < currentMinutes + MIN_LEAD_MINUTES) {
             startMins += APP_SETTINGS.slotInterval;
             continue;
         }
 
-        const isBusy = checkTechBusy(selectedTech, selectedDate, startMins, totalMins);
+        const isBusy = checkTechBusy(selectedTech, selectedDate, startMins, totalMins, isAdmin);
         if (!isBusy) {
             const slot = document.createElement('div');
             slot.className = 'time-slot';
@@ -653,8 +662,10 @@ function generate15MinSlots() {
     }
 }
 
-function checkTechBusy(tech, date, startMins, duration) {
-    return mockAppointments.some(appt => {
+// allowOverride: when true (admin), breaks/off-days are ignored but real appointment
+// conflicts are still enforced so nobody ever gets double-booked.
+function checkTechBusy(tech, date, startMins, duration, allowOverride = false) {
+    const hasApptConflict = mockAppointments.some(appt => {
         if (appt.date !== date || appt.tech !== tech || appt.status === 'cancelled') return false;
 
         const apptStart = timeToMins(appt.time);
@@ -662,6 +673,35 @@ function checkTechBusy(tech, date, startMins, duration) {
         const requestEnd = startMins + duration;
 
         return (startMins < apptEnd && requestEnd > apptStart);
+    });
+
+    if (hasApptConflict) return true;
+    if (allowOverride) return false;
+
+    if (isTechOffOnDate(tech, date)) return true;
+    if (isTechOnBreak(tech, date, startMins, duration)) return true;
+
+    return false;
+}
+
+// Specific-date off-days (e.g. vacation) for a specialist
+function isTechOffOnDate(techName, dateStr) {
+    const tech = technicians.find(t => t.name === techName);
+    if (!tech || !Array.isArray(tech.offDays)) return false;
+    return tech.offDays.includes(dateStr);
+}
+
+// Break windows for a specialist on a given date
+function isTechOnBreak(techName, dateStr, startMins, duration) {
+    const tech = technicians.find(t => t.name === techName);
+    if (!tech || !Array.isArray(tech.breaks)) return false;
+
+    const requestEnd = startMins + duration;
+    return tech.breaks.some(b => {
+        if (b.date !== dateStr) return false;
+        const breakStart = timeToMins(b.start);
+        const breakEnd = timeToMins(b.end);
+        return startMins < breakEnd && requestEnd > breakStart;
     });
 }
 
@@ -1227,6 +1267,13 @@ function openAdminBookingModal(presetDate, presetTime, presetTech) {
     document.getElementById('admin-client-phone').value = '';
     document.getElementById('admin-time-slots').innerHTML = '';
     document.getElementById('admin-booking-details').classList.add('hidden');
+    document.getElementById('admin-booking-recurring').checked = false;
+    document.getElementById('recurring-weeks-group').classList.add('hidden');
+}
+
+function toggleRecurringWeeksInput() {
+    const checked = document.getElementById('admin-booking-recurring').checked;
+    document.getElementById('recurring-weeks-group').classList.toggle('hidden', !checked);
 }
 
 function closeAdminBookingModal() {
@@ -1238,6 +1285,8 @@ function closeAdminBookingModal() {
     document.querySelectorAll('#admin-service-checkbox-list input[type="checkbox"]').forEach(cb => cb.checked = false);
     document.getElementById('admin-time-slots').innerHTML = '';
     document.getElementById('admin-booking-details').classList.add('hidden');
+    document.getElementById('admin-booking-recurring').checked = false;
+    document.getElementById('recurring-weeks-group').classList.add('hidden');
     adminBookingContext = null;
 }
 
@@ -1411,7 +1460,7 @@ function generateAdminTimeSlots(totalDuration) {
     let slotsAdded = 0;
 
     while (startMins + totalDuration <= limitMins) {
-        const isBusy = checkTechBusy(selectedTech, selectedDate, startMins, totalDuration);
+        const isBusy = checkTechBusy(selectedTech, selectedDate, startMins, totalDuration, true); // admin overrides breaks/off-days, never overrides real bookings
         if (!isBusy) {
             const slot = document.createElement('div');
             slot.className = 'time-slot';
@@ -1526,32 +1575,71 @@ async function confirmAdminBooking() {
         }
         
         const selectedSpecialist = technicians.find(t => t.name === techName);
-        
-        const bookingData = {
-            name: finalClientData.name,
-            phone: finalClientData.phone,
-            email: finalClientData.email,
-            userId: finalClientData.uid,
-            specialistId: selectedSpecialist ? (selectedSpecialist.userId || "") : "",
-services: adminSelectedServices.map(s => s.name),
-            serviceIds: adminSelectedServices.map(s => s.id),
-            tech: techName,
-            time: selectedTimeSlot.innerText,
-duration: adminSelectedServices.reduce((sum, s) => sum + s.dur, 0),
-            price: adminSelectedServices.reduce((sum, s) => sum + s.price, 0),
-            date: date,
-            status: 'confirmed',
-            createdAt: new Date().toISOString(),
-            createdBy: 'admin'
-        };
-        
+        const totalDuration = adminSelectedServices.reduce((sum, s) => sum + s.dur, 0);
+        const totalPrice = adminSelectedServices.reduce((sum, s) => sum + s.price, 0);
+        const baseStartMins = parseInt(selectedTimeSlot.dataset.minutes);
+
+        const isRecurring = document.getElementById('admin-booking-recurring').checked;
+        const recurringWeeks = isRecurring
+            ? Math.max(2, Math.min(26, parseInt(document.getElementById('admin-booking-recurring-weeks').value) || 12))
+            : 1;
+        const seriesId = isRecurring ? ('series_' + Date.now()) : null;
+
         const appointmentsRef = window.dbRef(window.db, 'appointments');
-        const newApptRef = window.dbPush(appointmentsRef);
-        await window.dbSet(newApptRef, bookingData);
-        
-        showNotification('Appointment created successfully for ' + finalClientData.name, 'success');
-       
-       adminSelectedServices = [];
+        let createdCount = 0;
+        const skippedDates = [];
+
+        for (let i = 0; i < recurringWeeks; i++) {
+            const occurrenceDateObj = new Date(date + 'T00:00:00');
+            occurrenceDateObj.setDate(occurrenceDateObj.getDate() + (i * 7));
+            const occurrenceDateStr = occurrenceDateObj.toISOString().split('T')[0];
+
+            // Admin overrides breaks/off-days for every future occurrence too, but a genuine
+            // double-booking (e.g. another appointment already landed in that slot) is still skipped.
+            if (checkTechBusy(techName, occurrenceDateStr, baseStartMins, totalDuration, true)) {
+                skippedDates.push(occurrenceDateStr);
+                continue;
+            }
+
+            const bookingData = {
+                name: finalClientData.name,
+                phone: finalClientData.phone,
+                email: finalClientData.email,
+                userId: finalClientData.uid,
+                specialistId: selectedSpecialist ? (selectedSpecialist.userId || "") : "",
+                services: adminSelectedServices.map(s => s.name),
+                serviceIds: adminSelectedServices.map(s => s.id),
+                tech: techName,
+                time: selectedTimeSlot.innerText,
+                duration: totalDuration,
+                price: totalPrice,
+                date: occurrenceDateStr,
+                status: 'confirmed',
+                createdAt: new Date().toISOString(),
+                createdBy: 'admin'
+            };
+
+            if (seriesId) {
+                bookingData.seriesId = seriesId;
+                bookingData.recurring = true;
+            }
+
+            const newApptRef = window.dbPush(appointmentsRef);
+            await window.dbSet(newApptRef, bookingData);
+            createdCount++;
+        }
+
+        if (isRecurring) {
+            let msg = `Recurring appointment created — ${createdCount} of ${recurringWeeks} weekly visits booked for ${finalClientData.name}.`;
+            if (skippedDates.length > 0) {
+                msg += ` ${skippedDates.length} date(s) were skipped due to a scheduling conflict.`;
+            }
+            showNotification(msg, skippedDates.length > 0 ? 'warning' : 'success');
+        } else {
+            showNotification('Appointment created successfully for ' + finalClientData.name, 'success');
+        }
+
+        adminSelectedServices = [];
         closeAdminBookingModal();
         renderAdminScheduler();
         
@@ -1667,6 +1755,9 @@ function renderStaffList() {
             <div class="mgmt-actions">
                 <button onclick="openSkillsModal('${staff.id}')" class="btn-skills">
                     <i class="fas fa-cogs"></i> Manage Skills
+                </button>
+                <button onclick="openAvailabilityModal('${staff.id}')" class="btn-skills">
+                    <i class="fas fa-calendar-times"></i> Availability
                 </button>
                 <button onclick="deleteStaff('${staff.id}')" class="btn-delete-small">
                     <i class="fas fa-trash"></i>
@@ -1886,6 +1977,137 @@ async function saveStaffSkills() {
     } catch (error) {
         console.error("Save skills error:", error);
         showNotification('Failed to update skills', 'danger');
+    }
+}
+
+// ==========================================
+// STAFF AVAILABILITY (BREAKS & OFF-DAYS)
+// ==========================================
+let currentEditingAvailability = { offDays: [], breaks: [] };
+
+function openAvailabilityModal(staffId) {
+    currentEditingStaff = staffId;
+    const staff = technicians.find(t => t.id === staffId);
+    if (!staff) return;
+
+    // Work on a local copy; only written to Firebase when "Save" is clicked
+    currentEditingAvailability = {
+        offDays: Array.isArray(staff.offDays) ? [...staff.offDays] : [],
+        breaks: Array.isArray(staff.breaks) ? staff.breaks.map(b => ({ ...b })) : []
+    };
+
+    document.getElementById('availability-modal-title').textContent = `Availability for ${staff.name.toUpperCase()}`;
+    document.getElementById('availability-modal').classList.add('active');
+    renderAvailabilityModalContent();
+}
+
+function renderAvailabilityModalContent() {
+    const offDaysList = document.getElementById('off-days-list');
+    const breaksList = document.getElementById('breaks-list');
+    if (!offDaysList || !breaksList) return;
+
+    if (currentEditingAvailability.offDays.length === 0) {
+        offDaysList.innerHTML = '<p style="color:var(--text-muted); font-size:0.85rem;">No off-days added</p>';
+    } else {
+        offDaysList.innerHTML = currentEditingAvailability.offDays
+            .slice()
+            .sort()
+            .map(d => `
+                <div class="mgmt-item" style="padding:8px 12px;">
+                    <span>${new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                    <button class="btn-delete-small" onclick="removeOffDay('${d}')"><i class="fas fa-times"></i></button>
+                </div>
+            `).join('');
+    }
+
+    if (currentEditingAvailability.breaks.length === 0) {
+        breaksList.innerHTML = '<p style="color:var(--text-muted); font-size:0.85rem;">No breaks added</p>';
+    } else {
+        breaksList.innerHTML = currentEditingAvailability.breaks
+            .slice()
+            .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))
+            .map(b => `
+                <div class="mgmt-item" style="padding:8px 12px;">
+                    <span>${new Date(b.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} — ${formatMinsToTime(timeToMins(b.start))} to ${formatMinsToTime(timeToMins(b.end))}</span>
+                    <button class="btn-delete-small" onclick="removeBreak('${b.id}')"><i class="fas fa-times"></i></button>
+                </div>
+            `).join('');
+    }
+}
+
+function addOffDay() {
+    const input = document.getElementById('new-off-day-date');
+    const date = input.value;
+    if (!date) {
+        showNotification('Please choose a date', 'warning');
+        return;
+    }
+    if (!currentEditingAvailability.offDays.includes(date)) {
+        currentEditingAvailability.offDays.push(date);
+    }
+    input.value = '';
+    renderAvailabilityModalContent();
+}
+
+function removeOffDay(date) {
+    currentEditingAvailability.offDays = currentEditingAvailability.offDays.filter(d => d !== date);
+    renderAvailabilityModalContent();
+}
+
+function addBreak() {
+    const dateInput = document.getElementById('new-break-date');
+    const startInput = document.getElementById('new-break-start');
+    const endInput = document.getElementById('new-break-end');
+
+    const date = dateInput.value;
+    const start = startInput.value;
+    const end = endInput.value;
+
+    if (!date || !start || !end) {
+        showNotification('Please fill date, start time, and end time', 'warning');
+        return;
+    }
+    if (timeToMins(end) <= timeToMins(start)) {
+        showNotification('End time must be after start time', 'warning');
+        return;
+    }
+
+    currentEditingAvailability.breaks.push({
+        id: 'brk_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+        date, start, end
+    });
+
+    dateInput.value = '';
+    startInput.value = '';
+    endInput.value = '';
+    renderAvailabilityModalContent();
+}
+
+function removeBreak(breakId) {
+    currentEditingAvailability.breaks = currentEditingAvailability.breaks.filter(b => b.id !== breakId);
+    renderAvailabilityModalContent();
+}
+
+function closeAvailabilityModal() {
+    document.getElementById('availability-modal').classList.remove('active');
+    currentEditingStaff = null;
+}
+
+async function saveStaffAvailability() {
+    if (!currentEditingStaff) return;
+
+    try {
+        const techRef = window.dbRef(window.db, `technicians/${currentEditingStaff}`);
+        await window.dbUpdate(techRef, {
+            offDays: currentEditingAvailability.offDays,
+            breaks: currentEditingAvailability.breaks
+        });
+
+        showNotification('Availability updated successfully', 'success');
+        closeAvailabilityModal();
+    } catch (error) {
+        console.error("Save availability error:", error);
+        showNotification('Failed to update availability', 'danger');
     }
 }
 
@@ -3137,225 +3359,6 @@ window.deleteAppointmentFromModal = async function() {
     });
 
 
-// ==========================================
-// BUG FIXES - ADMIN BOOKING & EDIT APPOINTMENT
-// ==========================================
-
-// Global variable to store selected client for admin booking
-window.selectedClientForBooking = null;
-
-// FIX BUG #3: Search for client in admin booking modal
-function searchClientForBooking() {
-    const searchTerm = document.getElementById('admin-client-search').value.trim().toLowerCase();
-    const resultsContainer = document.getElementById('admin-client-search-results');
-
-
-
-    if (!searchTerm || searchTerm.length < 2) {
-        resultsContainer.classList.add('hidden');
-        resultsContainer.innerHTML = '';
-        return;
-    }
-
-    // Search in all users (both signed up and imported)
-    const allUsers = window.allUsers || [];
-    
-    if (allUsers.length === 0) {
-        console.log("WARNING: No users loaded in window.allUsers");
-        // Try to load users
-        loadAllUsers();
-        resultsContainer.innerHTML = '<div class="search-result-item" style="text-align: center; color: var(--warning);"><i class="fas fa-exclamation-triangle"></i> Loading client data...</div>';
-        resultsContainer.classList.remove('hidden');
-        return;
-    }
-
-    const matchedUsers = allUsers.filter(user => {
-        if (user.role !== 'client') return false;
-
-        const name = (user.name || '').toLowerCase();
-        const phone = (user.phone || '').toString();
-
-        return name.includes(searchTerm) || phone.includes(searchTerm);
-    });
-
-    console.log("Matched users:", matchedUsers.length);
-
-    if (matchedUsers.length === 0) {
-        resultsContainer.innerHTML = '<div class="search-result-item" style="text-align: center; color: var(--text-muted);"><i class="fas fa-search"></i> No clients found</div>';
-        resultsContainer.classList.remove('hidden');
-        return;
-    }
-
-    resultsContainer.innerHTML = matchedUsers.map(user => `
-        <div class="search-result-item" onclick="selectClientForBooking('${user.uid}', '${user.name.replace(/'/g, "\\'")}', '${user.phone}', '${user.email || ''}')">
-            <h5>${user.name}</h5>
-            <p><i class="fas fa-phone"></i> ${user.phone}</p>
-            ${user.email ? `<p><i class="fas fa-envelope"></i> ${user.email}</p>` : ''}
-        </div>
-    `).join('');
-
-    resultsContainer.classList.remove('hidden');
-}
-
-// FIX BUG #3: Select client from search results
-function selectClientForBooking(uid, name, phone, email) {
-    console.log("Client selected:", name, phone, email);
-    
-    // Store selected client data globally
-    window.selectedClientForBooking = {
-        uid: uid,
-        name: name,
-        phone: phone,
-        email: email
-    };
-
-    // Hide search results
-    document.getElementById('admin-client-search-results').classList.add('hidden');
-    
-    // Show selected client info
-    const selectedInfo = document.getElementById('admin-selected-client-info');
-    document.getElementById('admin-selected-name').textContent = name;
-    document.getElementById('admin-selected-phone').textContent = phone;
-    document.getElementById('admin-selected-email').textContent = email || 'N/A';
-    selectedInfo.classList.remove('hidden');
-
-    // Clear search input
-    document.getElementById('admin-client-search').value = '';
-    
-    showNotification('Client selected: ' + name, 'success');
-}
-
-// Helper function to convert 12h to 24h format
-function convertTo24Hour(time12h) {
-    if (!time12h) return '';
-    
-    const [time, modifier] = time12h.split(' ');
-    let [hours, minutes] = time.split(':');
-    
-    if (hours === '12') {
-        hours = '00';
-    }
-    
-    if (modifier === 'PM') {
-        hours = parseInt(hours, 10) + 12;
-    }
-    
-    return `${hours}:${minutes}`;
-}
-
-// FIX BUG #3: Updated admin booking total to work with new modal structure
-function updateAdminBookingTotal() {
-    const checkboxes = document.querySelectorAll('#admin-service-checkbox-list input[type="checkbox"]:checked');
-    const summaryDiv = document.getElementById('admin-booking-summary');
-
-    if (checkboxes.length > 0) {
-        let total = 0;
-        let totalDuration = 0;
-
-        checkboxes.forEach(cb => {
-            total += parseFloat(cb.dataset.price);
-            totalDuration += parseInt(cb.dataset.dur);
-        });
-
-        document.getElementById('admin-sum-duration').textContent = totalDuration;
-        document.getElementById('admin-sum-price').textContent = total;
-        summaryDiv.classList.remove('hidden');
-    } else {
-        summaryDiv.classList.add('hidden');
-    }
-}
-
-// FIX BUG #3: Updated confirmAdminBooking to use selected client data
-async function confirmAdminBooking() {
-    const selectedClient = window.selectedClientForBooking;
-    const date = document.getElementById('admin-booking-date').value;
-    const time = document.getElementById('admin-booking-time').value; // This is 24h format from input
-    const techName = document.getElementById('admin-booking-tech').value;
-
-    const selectedServices = Array.from(document.querySelectorAll('#admin-service-checkbox-list input[type="checkbox"]:checked'));
-
-    // Validate all required fields
-    if (!selectedClient) {
-        showNotification('Please search and select a client', 'warning');
-        return;
-    }
-    
-    if (!date || !time || !techName || selectedServices.length === 0) {
-        showNotification('Please fill all fields and select services', 'warning');
-        return;
-    }
-
-    // Convert 24h time to 12h format for display
-    const time12h = formatTimeFromInput(time);
-    const selectedSpecialist = technicians.find(t => t.name === techName);
-
-    // FIX: Use selected client's data, NOT admin's data
-    const bookingData = {
-        name: selectedClient.name,           // Client's name, not admin's
-        phone: selectedClient.phone,         // Client's phone
-        email: selectedClient.email || "",   // Client's email
-        userId: selectedClient.uid,          // Client's UID
-        specialistId: selectedSpecialist ? (selectedSpecialist.userId || "") : "",
-        services: selectedServices.map(cb => cb.dataset.name),
-        serviceIds: selectedServices.map(cb => cb.value),
-        tech: techName,
-        time: time12h,
-        duration: selectedServices.reduce((sum, cb) => sum + parseInt(cb.dataset.dur || 30), 0),
-        price: selectedServices.reduce((sum, cb) => sum + parseFloat(cb.dataset.price || 0), 0),
-        date: date,
-        status: 'confirmed',
-        createdAt: new Date().toISOString(),
-        createdBy: 'admin'  // Mark as admin-created
-    };
-
-    console.log("Creating appointment with data:", bookingData);
-
-    try {
-        const appointmentsRef = window.dbRef(window.db, 'appointments');
-        const newApptRef = window.dbPush(appointmentsRef);
-        await window.dbSet(newApptRef, bookingData);
-
-        showNotification('Appointment created successfully for ' + selectedClient.name + '!', 'success');
-        closeAdminBookingModal();
-        renderAdminScheduler();
-    } catch (error) {
-        console.error("Admin booking error:", error);
-        showNotification('Failed to save booking', 'danger');
-    }
-}
-
-// Helper to format time from 24h input to 12h display
-function formatTimeFromInput(time24) {
-    if (!time24) return '';
-    
-    const [hours, minutes] = time24.split(':');
-    let hour = parseInt(hours);
-    const modifier = hour >= 12 ? 'PM' : 'AM';
-    
-    if (hour === 0) {
-        hour = 12;
-    } else if (hour > 12) {
-        hour = hour - 12;
-    }
-    
-    return `${hour}:${minutes} ${modifier}`;
-}
-
-// Close admin booking modal
-function closeAdminBookingModal() {
-    document.getElementById('admin-booking-modal').classList.remove('active');
-    document.getElementById('admin-client-search').value = '';
-    document.getElementById('admin-client-search-results').classList.add('hidden');
-    document.getElementById('admin-selected-client-info').classList.add('hidden');
-    document.getElementById('admin-booking-date').value = '';
-    document.getElementById('admin-booking-time').value = '';
-    document.getElementById('admin-booking-tech').value = '';
-    document.querySelectorAll('#admin-service-checkbox-list input[type="checkbox"]').forEach(cb => cb.checked = false);
-    document.getElementById('admin-booking-summary').classList.add('hidden');
-    
-    window.selectedClientForBooking = null;
-    adminBookingContext = null;
-}
 
 // ==========================================
 // BUG FIX #4: EDIT APPOINTMENT MODAL
@@ -3438,7 +3441,18 @@ function openEditAppointmentModal(appointmentId) {
             <strong><i class="fas fa-info-circle"></i> Status:</strong>
             <span class="status-badge status-${appointment.status}">${appointment.status.toUpperCase()}</span>
         </div>
+        ${appointment.seriesId ? `
+        <div class="detail-row">
+            <strong><i class="fas fa-redo"></i> Recurring:</strong>
+            <span>Part of a weekly series</span>
+        </div>` : ''}
     `;
+
+    // Show "cancel entire series" only for appointments that belong to a recurring series
+    const cancelSeriesBtn = document.getElementById('cancel-series-btn');
+    if (cancelSeriesBtn) {
+        cancelSeriesBtn.classList.toggle('hidden', !appointment.seriesId);
+    }
 
     // Always reset to view mode when opening, so stale edit form from a previous appointment never shows
     document.getElementById('edit-edit-mode').classList.add('hidden');
@@ -3456,14 +3470,19 @@ function closeEditAppointmentModal() {
     window.currentEditingAppointment = null;
 }
 
-// Delete appointment from modal
+// Delete appointment from modal (cancels just this one occurrence, even if it's part of a series)
 async function deleteAppointmentFromModal() {
     if (!window.currentEditingAppointment) {
         showNotification('No appointment selected', 'danger');
         return;
     }
 
-    if (!confirm('Are you sure you want to cancel this appointment?')) {
+    const isSeriesOccurrence = !!window.currentEditingAppointment.seriesId;
+    const confirmMsg = isSeriesOccurrence
+        ? 'Cancel this one occurrence? The rest of the recurring series will stay booked.'
+        : 'Are you sure you want to cancel this appointment?';
+
+    if (!confirm(confirmMsg)) {
         return;
     }
 
@@ -3476,6 +3495,41 @@ async function deleteAppointmentFromModal() {
     } catch (error) {
         console.error("Delete appointment error:", error);
         showNotification('Failed to cancel appointment', 'danger');
+    }
+}
+
+// Cancels every remaining (today-or-later) occurrence of a recurring series
+async function cancelEntireSeries() {
+    if (!window.currentEditingAppointment || !window.currentEditingAppointment.seriesId) {
+        showNotification('This appointment is not part of a recurring series', 'warning');
+        return;
+    }
+
+    const seriesId = window.currentEditingAppointment.seriesId;
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    const occurrences = mockAppointments.filter(a => a.seriesId === seriesId && a.date >= todayStr);
+
+    if (occurrences.length === 0) {
+        showNotification('No upcoming occurrences found for this series', 'info');
+        return;
+    }
+
+    if (!confirm(`Cancel all ${occurrences.length} remaining occurrence(s) of this recurring series? Past visits are kept for your records.`)) {
+        return;
+    }
+
+    try {
+        await Promise.all(occurrences.map(a => {
+            const apptRef = window.dbRef(window.db, `appointments/${a.firebaseId}`);
+            return window.dbRemove(apptRef);
+        }));
+        showNotification(`Cancelled ${occurrences.length} appointment(s) from the series`, 'info');
+        closeEditAppointmentModal();
+        renderAdminScheduler();
+    } catch (error) {
+        console.error("Cancel series error:", error);
+        showNotification('Failed to cancel the full series', 'danger');
     }
 }
 
@@ -3769,6 +3823,24 @@ async function saveEditedAppointment() {
     // Calculate totals
     const totalDuration = selectedServices.reduce((sum, cb) => sum + parseInt(cb.dataset.dur || 30), 0);
     const totalPrice = selectedServices.reduce((sum, cb) => sum + parseFloat(cb.dataset.price || 0), 0);
+
+    // Conflict check (this was previously missing, so edits could silently double-book a specialist).
+    // Admin overrides breaks/off-days but never a real appointment conflict, and excludes this
+    // appointment's own current slot from the check.
+    const newStartMins = timeToMins(time12h);
+    const hasConflict = mockAppointments.some(appt => {
+        if (appt.firebaseId === appointmentId) return false;
+        if (appt.date !== date || appt.tech !== techName || appt.status === 'cancelled') return false;
+        const apptStart = timeToMins(appt.time);
+        const apptEnd = apptStart + appt.duration;
+        const requestEnd = newStartMins + totalDuration;
+        return newStartMins < apptEnd && requestEnd > apptStart;
+    });
+
+    if (hasConflict) {
+        showNotification(`${techName} already has another appointment that overlaps this time`, 'danger');
+        return;
+    }
 
     // Build update data
     const updateData = {
