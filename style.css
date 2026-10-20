@@ -2947,3 +2947,46 @@
         font-size: 0.7rem;
     }
 }
+
+.tech-off-cell {
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(231, 111, 81, 0.10),
+        rgba(231, 111, 81, 0.10) 6px,
+        rgba(231, 111, 81, 0.20) 6px,
+        rgba(231, 111, 81, 0.20) 12px
+    ) !important;
+    cursor: not-allowed;
+}
+
+.tech-off-header {
+    background: var(--danger) !important;
+}
+
+.off-badge {
+    background: #fff;
+    color: var(--danger);
+    border-radius: 6px;
+    padding: 1px 6px;
+    font-size: 0.6rem;
+}
+
+.tech-off-label {
+    pointer-events: none;      /* clicks pass through to the cells */
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 40px;
+    z-index: 2;
+}
+
+.tech-off-label span {
+    position: sticky;
+    top: 70px;
+    background: rgba(231, 111, 81, 0.95);
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.75rem;
+    padding: 6px 12px;
+    border-radius: 20px;
+}
