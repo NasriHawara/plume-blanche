@@ -1105,11 +1105,13 @@ function renderAdminScheduler() {
     grid.appendChild(headerTime);
 
     techsToShow.forEach(t => {
-        const h = document.createElement('div');
-        h.className = 'grid-header';
-        h.innerHTML = `<i class="fas fa-user-tie"></i> ${t.name.toUpperCase()}`;
-        grid.appendChild(h);
-    });
+    const h = document.createElement('div');
+    h.className = 'grid-header';
+    const isOff = dateVal && isTechOffOnDate(t.name, dateVal);
+    if (isOff) h.classList.add('tech-off-header');
+    h.innerHTML = `<i class="fas fa-user-tie"></i> ${t.name.toUpperCase()}${isOff ? ' &nbsp;<span class="off-badge">OFF</span>' : ''}`;
+    grid.appendChild(h);
+});
 
     // Admin-specific settings: 9 AM - 9 PM with 10-minute intervals
     const ADMIN_OPENING_TIME = 9;
@@ -1132,14 +1134,18 @@ function renderAdminScheduler() {
         grid.appendChild(lbl);
 
         techsToShow.forEach((tech, index) => {
-            const colIndex = index + 2;
-            const cell = document.createElement('div');
-            cell.className = 'empty-grid-cell';
-            cell.style.gridColumn = colIndex;
-            cell.style.gridRow = i + 2;
-            cell.onclick = () => openAdminBookingModal(dateVal, timeStr, tech.name);
-            grid.appendChild(cell);
-        });
+    const colIndex = index + 2;
+    const cell = document.createElement('div');
+    const isOff = dateVal && isTechOffOnDate(tech.name, dateVal);
+    cell.className = 'empty-grid-cell' + (isOff ? ' tech-off-cell' : '');
+    cell.style.gridColumn = colIndex;
+    cell.style.gridRow = i + 2;
+    cell.onclick = () => {
+        if (isOff && !confirm(`${tech.name} is off on this date. Book anyway?`)) return;
+        openAdminBookingModal(dateVal, timeStr, tech.name);
+    };
+    grid.appendChild(cell);
+});
     }
 
     // Render appointments
