@@ -2990,37 +2990,3 @@
     padding: 6px 12px;
     border-radius: 20px;
 }
-
-/* ==========================================
-   MAINTENANCE / 404 PAGE
-   ========================================== */
-.maintenance-card {
-    max-width: 560px;
-    margin: 60px auto;
-    text-align: center;
-    padding: 50px 32px;
-}
-.maintenance-code {
-    font-family: 'Playfair Display', serif;
-    font-size: 5rem;
-    font-weight: 700;
-    line-height: 1;
-    background: var(--gradient-primary);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    margin-bottom: 16px;
-}
-.maintenance-card .section-title {
-    justify-content: center;
-    margin-bottom: 12px;
-}
-.maintenance-card .subtitle {
-    line-height: 1.7;
-}
-.maintenance-note {
-    margin-top: 24px;
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    font-style: italic;
-}
