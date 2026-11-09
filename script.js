@@ -8,32 +8,6 @@ const APP_SETTINGS = {
     slotInterval: 15
 };
 
-// ==========================================
-// ONLINE BOOKING MASTER SWITCH
-// ------------------------------------------
-// false = clients see a 404 "temporarily unavailable" page and cannot
-//         log in, sign up or book. Staff (admin/specialist) log in via
-//         your-site-url/#staff
-// true  = normal behaviour
-// ==========================================
-const ONLINE_BOOKING_ENABLED = false;
-
-function isStaffLoginRoute() {
-    return window.location.hash === '#staff';
-}
-
-function isStaffUser() {
-    return !!currentUser && (currentUser.role === 'admin' || currentUser.role === 'specialist');
-}
-
-// Decides which view is really allowed to show while booking is paused
-function resolveViewForMaintenance(viewId) {
-    if (ONLINE_BOOKING_ENABLED) return viewId;
-    if (isStaffUser()) return viewId;
-    if (viewId === 'auth-section' && isStaffLoginRoute()) return viewId;
-    return 'maintenance-section';
-}
-
 let technicians = [];
 let services = [];
 let mockAppointments = [];
@@ -268,12 +242,6 @@ async function syncPhoneLinkedAppointments(userId, phone) {
 // NAVIGATION & AUTHENTICATION
 // ==========================================
 function showView(viewId) {
-    viewId = resolveViewForMaintenance(viewId);
-
-    // While paused, the staff login page must not offer sign-up
-    const toggleLink = document.querySelector('.toggle-link');
-    if (toggleLink) toggleLink.classList.toggle('hidden', !ONLINE_BOOKING_ENABLED);
-
     document.querySelectorAll('.view').forEach(v => {
         v.classList.add('hidden');
         v.style.animation = 'fadeOut 0.3s ease';
@@ -333,12 +301,6 @@ const name = `${firstName} ${lastName}`.trim(); // Combine them
 
     if (!email || !password) {
         showNotification('Please fill in email and password', 'warning');
-        return;
-    }
-
-    // Online booking paused: no new client accounts
-    if (!ONLINE_BOOKING_ENABLED && !isLoggingIn) {
-        showNotification('Online registration is temporarily unavailable.', 'warning');
         return;
     }
 
@@ -750,11 +712,6 @@ function selectSlot(el) {
 }
 
 bookNowBtn.onclick = async () => {
-
-    if (!ONLINE_BOOKING_ENABLED) {
-        showView('maintenance-section');
-        return;
-    }
 
     if (!currentUser || currentUser.role !== 'client') {
         showNotification('Please login to book appointments', 'warning');
@@ -3235,8 +3192,6 @@ if (document.getElementById('report-date-filter')) {
     document.getElementById('report-date-filter').value = today;
 }
 
-window.addEventListener('hashchange', () => window.location.reload());
-
 window.onload = () => {
     showView('auth-section');
     document.getElementById('nav-links').classList.add('hidden');
@@ -3256,17 +3211,6 @@ window.onload = () => {
                     };
 
                     localStorage.setItem('plume_user', JSON.stringify(currentUser));
-
-                    // Online booking paused: clients get signed out and see the 404 page
-                    if (!ONLINE_BOOKING_ENABLED && currentUser.role !== 'admin' && currentUser.role !== 'specialist') {
-                        history.replaceState(null, '', window.location.pathname + window.location.search);
-                        currentUser = null;
-                        localStorage.removeItem('plume_user');
-                        document.getElementById('nav-links').classList.add('hidden');
-                        showView('maintenance-section');
-                        window.signOut(window.auth);
-                        return;
-                    }
 
                     document.getElementById('nav-links').classList.remove('hidden');
 
